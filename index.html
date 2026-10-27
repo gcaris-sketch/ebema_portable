@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cotizador Oficial EBEMA</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    :root {
+      --ebema-red: #d32f2f;
+      --ebema-red-dark: #b71c1c;
+      --bg: #f4f6f8;
+      --card: #ffffff;
+      --ink: #1e293b;
+      --mut: #64748b;
+      --line: #cbd5e1;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding-bottom: 50px;
+    }
+    header {
+      background: var(--ink);
+      color: #fff;
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 4px solid var(--ebema-red);
+    }
+    header h1 {
+      margin: 0;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+    }
+    header small { color: #94a3b8; font-size: 13px; text-align: right; }
+    nav { display: flex; gap: 6px; padding: 14px 14px 0; max-width: 1000px; margin: auto; }
+    nav button {
+      flex: 1; padding: 12px; border: 1px solid var(--line); border-bottom: 0;
+      background: #e2e8f0; color: var(--mut); font-weight: 600; border-radius: 8px 8px 0 0; cursor: pointer;
+    }
+    nav button.on { background: var(--card); color: var(--ebema-red); border-top: 3px solid var(--ebema-red); }
+    main {
+      max-width: 1000px; margin: auto; background: var(--card); border: 1px solid var(--line);
+      border-radius: 0 0 10px 10px; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+    }
+    .grid-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 14px; }
+    .field-group { display: flex; flex-direction: column; gap: 4px; }
+    label { font-size: 12px; font-weight: 600; color: var(--mut); text-transform: uppercase; }
+    input, textarea, select {
+      width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 6px; font: inherit; background: #fff;
+    }
+    input:focus, textarea:focus, select:focus { outline: none; border-color: var(--ebema-red); }
+    textarea { min-height: 70px; resize: vertical; }
+    button.btn-p { background: var(--ebema-red); color: #fff; border: 0; border-radius: 6px; padding: 10px 18px; font-weight: 600; cursor: pointer; }
+    button.btn-p:hover { background: var(--ebema-red-dark); }
+    button.btn-s { background: #f1f5f9; color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 7px 12px; font-weight: 600; cursor: pointer; }
+    .it { border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 8px; display: flex; gap: 12px; align-items: center; justify-content: space-between; background: #fafafa; }
+    .it b { color: var(--ink); }
+    .it .m { color: var(--mut); font-size: 12px; margin-top: 2px; }
+    .pr { text-align: right; }
+    .pr strong { font-size: 16px; color: var(--ebema-red); }
+    .q-input { width: 80px; text-align: center; }
+    h2.sec-title { font-size: 15px; color: var(--ebema-red); border-bottom: 2px solid #fee2e2; padding-bottom: 4px; margin: 22px 0 12px; text-transform: uppercase; }
+    #msg { padding: 10px 16px; background: #fef2f2; border-left: 4px solid var(--ebema-red); color: #991b1b; max-width: 1000px; margin: 10px auto 0; border-radius: 4px; }
+    .summary-card { background: #f8fafc; border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-top: 16px; }
+    .tot-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px; }
+    .tot-row.grand { font-size: 18px; font-weight: 700; color: var(--ebema-red); border-top: 2px solid var(--line); padding-top: 8px; margin-top: 6px; }
+    iframe { width: 100%; height: 550px; border: 1px solid var(--line); border-radius: 6px; margin-top: 14px; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>
+    <!-- LOGO REAL -->
+    <img id="logo-img" src="cropped-cropped-Ebema-Logo-Ebema-Removebg.png" alt="EBEMA" style="height: 40px; margin-right: 12px;">
+    Cotizador Web
+  </h1>
+  <small id="est">Cargando archivo de productos SAP...</small>
+</header>
+
+<div id="msg" hidden></div>
+
+<nav>
+  <button id="t1" class="on" onclick="tab(1)">🔍 Consulta Catálogo SAP</button>
+  <button id="t2" onclick="tab(2)">📋 Cotización Actual (<span id="cnt">0</span>)</button>
+</nav>
+
+<main>
+  <section id="v1">
+    <div style="margin-bottom: 14px;">
+      <input id="q" type="search" placeholder="Escribe código SAP, nombre o descripción del material..." oninput="draw()">
+    </div>
+    <div id="res"></div>
+  </section>
+
+  <section id="v2" hidden>
+    <h2 class="sec-title">Datos del Cliente</h2>
+    <div class="grid-row">
+      <div class="field-group"><label>Cliente / Empresa</label><input id="c_n" placeholder="Razón Social"></div>
+      <div class="field-group"><label>RUT Cliente</label><input id="c_r" placeholder="12.345.678-9"></div>
+      <div class="field-group"><label>Obra / Proyecto</label><input id="c_o" placeholder="Nombre de Obra"></div>
+      <div class="field-group">
+        <label>Condición de Pago</label>
+        <select id="c_pago">
+          <option>Pagadero a 45 días</option>
+          <option>Pagadero a 30 días</option>
+          <option>Pagadero a 60 días</option>
+          <option>Al contado</option>
+          <option>Transferencia Anticipada</option>
+        </select>
+      </div>
+    </div>
+
+    <h2 class="sec-title">Ejecutivo de Ventas & Emisión</h2>
+    <div class="grid-row">
+      <div class="field-group"><label>Ejecutivo Comercial</label><input id="e_n" placeholder="Nombre del Ejecutivo"></div>
+      <div class="field-group"><label>Teléfono / Contacto</label><input id="e_t" placeholder="+56 9 1234 5678"></div>
+      <div class="field-group"><label>N° Folio Cotización</label><input id="e_folio" value="1065321"></div>
+      <div class="field-group"><label>Fecha Emisión</label><input id="e_fecha" type="date"></div>
+      <div class="field-group"><label>Vigencia Hasta</label><input id="e_vigencia" type="date"></div>
+    </div>
+
+    <h2 class="sec-title">Ítems Seleccionados</h2>
+    <div id="items"></div>
+
+    <!-- AGREGAR ÍTEM MANUALMENTE CON AUTOCOMPLETADO -->
+    <div style="background: #f8fafc; border: 1px dashed var(--line); padding: 12px; border-radius: 6px; margin-top: 14px;">
+      <label style="display:block; margin-bottom:8px; color: var(--ink); font-weight:700;">+ Agregar Ítem (Escribe para autocompletar)</label>
+      <div class="grid-row" style="margin-bottom:0;">
+        <div class="field-group" style="grid-column: span 2;"><label>Descripción</label><input id="m_d" placeholder="Ej: Cemento..." oninput="autoSearch('d')"></div>
+        <div class="field-group"><label>Código</label><input id="m_c" placeholder="Código SAP" oninput="autoSearch('c')"></div>
+        <div class="field-group"><label>Cant.</label><input id="m_q" type="number" value="1" min="1"></div>
+        <div class="field-group"><label>U.M.</label><input id="m_u" value="UN"></div>
+        <div class="field-group"><label>Precio Venta Neto ($)</label><input id="m_p" type="number" min="0" placeholder="0"></div>
+      </div>
+      <div style="text-align: right; margin-top: 10px;">
+        <button class="btn-s" onclick="addManual()">+ Agregar Ítem</button>
+      </div>
+    </div>
+
+    <h2 class="sec-title">Descuentos & Flete Globales</h2>
+    <div class="grid-row">
+      <div class="field-group"><label>Flete Global Neto ($)</label><input id="flete_val" type="number" value="0" min="0" oninput="items()"></div>
+      <div class="field-group"><label>Descuento Global Neto ($)</label><input id="desc_val" type="number" value="0" min="0" oninput="items()"></div>
+    </div>
+
+    <div class="summary-card" id="tot"></div>
+
+    <h2 class="sec-title">Notas Visibles en PDF</h2>
+    <div class="field-group">
+      <textarea id="nota" placeholder="Observaciones sobre entrega o descarga..."></textarea>
+    </div>
+
+    <div style="margin-top: 20px; display: flex; gap: 10px;">
+      <button class="btn-p" onclick="preview()">👁️ Previsualizar PDF</button>
+      <button class="btn-p" style="background:#15803d;" onclick="pdf(true)">📥 Descargar Oficial</button>
+    </div>
+
+    <div id="pv" hidden>
+      <h2 class="sec-title">Vista Previa</h2>
+      <iframe id="fr"></iframe>
+      <p style="text-align: right;"><a id="ab" target="_blank" style="color: var(--ebema-red); font-weight: bold;">Abrir PDF ↗</a></p>
+    </div>
+  </section>
+</main>
+
+<script>
+const ARCHIVO_SAP = "EXPORT.XLSX";
+
+// 1. AÑADIDOS LOS ENCABEZADOS EXACTOS DEL ERROR
+const COLS_SAP = {
+  code: ["cod.material", "codigo", "cod", "sku", "material"],
+  desc: ["texto breve de material", "descrip", "nombre", "texto"],
+  price: ["zcco", "precio", "vprsv", "valor"],
+  stock: ["libre utiliz.", "stock", "existencia", "disponible"],
+  um: ["um base", "um", "unidad", "medida"]
+};
+
+let P = [], Q = [];
+const $ = id => document.getElementById(id);
+const norm = s => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+const esc = s => String(s || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const clp = n => "$ " + Math.round(n || 0).toLocaleString("es-CL");
+
+function num(v) {
+  if (typeof v === "number") return v;
+  let s = String(v || "").replace(/[^\d.,-]/g, "");
+  if (s.includes(",") && s.includes(".")) s = s.replace(/\./g, "").replace(",", ".");
+  else if (s.includes(",")) s = s.replace(",", ".");
+  return parseFloat(s) || 0;
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  const hoy = new Date();
+  $("e_fecha").value = hoy.toISOString().split('T')[0];
+  const vig = new Date(); vig.setDate(hoy.getDate() + 7);
+  $("e_vigencia").value = vig.toISOString().split('T')[0];
+  cargarExcelSAP();
+});
+
+async function cargarExcelSAP() {
+  try {
+    const r = await fetch(ARCHIVO_SAP + "?t=" + Date.now());
+    if (!r.ok) throw new Error("No se pudo leer el archivo. ¿Estás ejecutando la web mediante un servidor local (Live Server)?");
+    
+    // Obtener fecha del archivo si está disponible
+    const lastMod = r.headers.get("Last-Modified");
+    const fechaTexto = lastMod ? new Date(lastMod).toLocaleDateString("es-CL") : "Reciente";
+
+    const wb = XLSX.read(await r.arrayBuffer(), { type: "array" });
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
+    if (!rows.length) throw new Error("El archivo está vacío.");
+
+    const heads = Object.keys(rows[0]);
+    const map = {};
+
+    for (const k in COLS_SAP) {
+      for (const w of COLS_SAP[k]) {
+        const h = heads.find(h => norm(h).includes(w));
+        if (h) { map[k] = h; break; }
+      }
+    }
+
+    if (!map.code || !map.desc || !map.price) {
+      throw new Error("No se detectaron las columnas obligatorias en SAP. Encabezados hallados: " + heads.join(", "));
+    }
+
+    P = rows.map(r => ({
+      code: String(r[map.code] || "").trim(),
+      desc: String(r[map.desc] || "").trim(),
+      price: num(r[map.price]),
+      stock: map.stock ? String(r[map.stock]) : "Disponible",
+      um: map.um ? String(r[map.um]).toUpperCase() : "UN"
+    })).filter(p => p.code || p.desc);
+
+    $("est").textContent = `${P.length} productos cargados (Datos al ${fechaTexto})`;
+    $("msg").hidden = true;
+    draw();
+  } catch (e) {
+    const m = $("msg");
+    m.hidden = false;
+    m.textContent = "Aviso: " + e.message;
+    $("est").textContent = "Carga fallida. (Ingreso manual disponible)";
+  }
+}
+
+function autoSearch(tipo) {
+  const val = norm(tipo === 'c' ? $("m_c").value : $("m_d").value);
+  if (val.length < 3) return; // Buscar sólo después de 3 caracteres
+
+  const match = P.find(p => tipo === 'c' ? norm(p.code) === val : norm(p.desc).includes(val));
+  
+  if (match) {
+    if (tipo === 'c' && !$("m_d").value) $("m_d").value = match.desc;
+    if (tipo === 'd' && !$("m_c").value) $("m_c").value = match.code;
+    $("m_p").value = match.price;
+    $("m_u").value = match.um;
+  }
+}
+
+function tab(n) {
+  $("v1").hidden = n != 1; $("v2").hidden = n != 2;
+  $("t1").className = n == 1 ? "on" : ""; $("t2").className = n == 2 ? "on" : "";
+  draw();
+}
+
+function draw() {
+  const t = norm($("q").value);
+  const l = t ? P.filter(p => norm(p.code + " " + p.desc).includes(t)).slice(0, 40) : [];
+  $("res").innerHTML = !t ? '<p style="color:var(--mut); padding:20px; text-align:center;">Escribe para buscar materiales.</p>' 
+    : l.length ? l.map(p => {
+        const i = P.indexOf(p);
+        return `<div class="it"><div class="d"><b>${esc(p.code)}</b> — ${esc(p.desc)}<div class="m">Stock: ${esc(p.stock)} · U.M.: ${esc(p.um)}</div></div>
+        <div class="pr"><strong>${clp(p.price)} Neto</strong><br><button class="btn-s" style="margin-top:4px;" onclick="add(${i})">+ Agregar</button></div></div>`;
+      }).join("") : '<p style="color:var(--mut); padding:10px;">Sin coincidencias.</p>';
+}
+
+function add(i) {
+  const p = P[i];
+  const x = Q.find(q => q.code === p.code && q.desc === p.desc);
+  x ? x.qty++ : Q.push({ code: p.code, desc: p.desc, price: p.price, qty: 1, um: p.um });
+  items();
+}
+
+function addManual() {
+  const d = $("m_d").value.trim(), c = $("m_c").value.trim();
+  const pr = +$("m_p").value || 0, q = +$("m_q").value || 1, u = $("m_u").value.trim() || "UN";
+  if (!d) return alert("Ingresa una descripción.");
+  Q.push({ code: c, desc: d, price: pr, qty: q, um: u });
+  $("m_d").value = ""; $("m_c").value = ""; $("m_p").value = ""; $("m_q").value = "1";
+  items();
+}
+
+function items() {
+  $("cnt").textContent = Q.length;
+  $("items").innerHTML = Q.length ? Q.map((q, i) => `
+    <div class="it"><div class="d"><b>${q.code ? esc(q.code)+" — " : ""}${esc(q.desc)}</b><div class="m">Neto: ${clp(q.price)} / ${esc(q.um)}</div></div>
+    <div style="display:flex; align-items:center; gap:8px;"><input class="q-input" type="number" min="1" value="${q.qty}" onchange="Q[${i}].qty = Math.max(1, +this.value||1); items()">
+    <span style="font-size:12px; color:var(--mut);">${esc(q.um)}</span><span style="min-width:90px; text-align:right; font-weight:700;">${clp(q.price * q.qty)}</span>
+    <button class="btn-s" style="color:#b71c1c;" onclick="Q.splice(${i},1); items()">✕</button></div></div>`).join("") : '';
+  
+  const t = tot();
+  $("tot").innerHTML = `
+    <div class="tot-row"><span>SUB TOTAL:</span> <strong>${clp(t.sub)}</strong></div>
+    <div class="tot-row"><span>% DESCUENTO:</span> <strong>${clp(t.desc)}</strong></div>
+    <div class="tot-row"><span>FLETE:</span> <strong>${clp(t.flete)}</strong></div>
+    <div class="tot-row" style="border-top:1px solid var(--line); padding-top:4px;"><span>NETO:</span> <strong>${clp(t.neto)}</strong></div>
+    <div class="tot-row"><span>I.V.A (19%):</span> <strong>${clp(t.iva)}</strong></div>
+    <div class="tot-row grand"><span>TOTAL:</span> <span>${clp(t.total)}</span></div>`;
+}
+
+function tot() {
+  const sub = Q.reduce((a, q) => a + (q.price * q.qty), 0);
+  const flete = +$("flete_val").value || 0, desc = +$("desc_val").value || 0;
+  const neto = Math.max(0, sub - desc + flete), iva = neto * 0.19, total = neto + iva;
+  return { sub, desc, flete, neto, iva, total };
+}
+
+function pdf(save) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const W = 210, margin = 14;
+  let y = 14;
+
+  // 1. ENCABEZADO Y LOGO REAL
+  const imgElement = document.getElementById("logo-img");
+  if (imgElement && imgElement.complete && imgElement.naturalHeight !== 0) {
+    // Inserta la imagen PNG original (X, Y, Ancho, Alto)
+    doc.addImage(imgElement, "PNG", margin, y - 2, 45, 12);
+  } else {
+    // Respaldo de texto si la imagen falla
+    doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.setTextColor(211, 47, 47); doc.text("EBEMA", margin, y + 5);
+  }
+
+  // Número de folio desplazado a la derecha
+  doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(0, 0, 0);
+  doc.text("COTIZACIÓN N° " + ($("e_folio").value || "1065321"), 196, y + 4, { align: "right" });
+  
+  const fechaE = $("e_fecha").value ? $("e_fecha").value.split('-').reverse().join('-') : "";
+  doc.setFontSize(10); doc.setFont("helvetica", "normal");
+  doc.text("Fecha: " + fechaE, 196, y + 10, { align: "right" });
+
+  y += 18;
+  doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(50, 50, 50);
+  doc.text("EBEMA S.A. Giro: Distribución de Materiales de Construcción RUT: 83.585.400-0", W/2, y, { align: "center" });
+  doc.setFont("helvetica", "normal"); doc.setFontSize(8);
+  doc.text("Casa Matriz: Galvarino 8501, Quilicura - Santiago Fono:(2) 654 4400", W/2, y + 4, { align: "center" });
+
+  y += 9;
+  doc.setDrawColor(80, 80, 80); doc.setLineWidth(0.4); doc.line(margin, y, W - margin, y);
+
+  // BARRA DE SUCURSALES (Espaciado mejorado)
+  y += 5;
+  doc.setFontSize(6);
+  const sucursales = [
+    { n: "Antofagasta", d: "Pedro Aguirre Cerda 11662", t: "(55) 480 100" },
+    { n: "La Serena", d: "Los Talleres 1930", t: "(51) 556 155" },
+    { n: "La Calera", d: "Aldunate 480-B", t: "(33) 221 111" },
+    { n: "Talca", d: "KM 258, 6 Caletera O.", t: "(73) 2634240" },
+    { n: "Concepción", d: "Av. Gen. Bonilla 2098", t: "(41) 288 5850" },
+    { n: "Puerto Montt", d: "Calle Pto. Lirquén S/N", t: "(65) 238 3930" }
+  ];
+  const colW = (W - 2 * margin) / sucursales.length;
+  sucursales.forEach((s, idx) => {
+    const x = margin + (idx * colW);
+    doc.setFont("helvetica", "bold"); doc.text(s.n, x, y);
+    doc.setFont("helvetica", "normal"); doc.text(s.d, x, y + 3.5); doc.text("Tel: " + s.t, x, y + 7);
+  });
+
+  y += 12; doc.line(margin, y, W - margin, y);
+
+  // 2. DATOS DEL CLIENTE (Más espacio vertical)
+  y += 8;
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "bold"); doc.text("SR(ES):", margin, y);
+  doc.setFont("helvetica", "normal"); doc.text(($("c_n").value || "-").toUpperCase(), margin + 18, y);
+  doc.setFont("helvetica", "bold"); doc.text("RUT:", 135, y);
+  doc.setFont("helvetica", "normal"); doc.text($("c_r").value || "-", 145, y);
+
+  y += 6;
+  doc.setFont("helvetica", "bold"); doc.text("OBRA:", margin, y);
+  doc.setFont("helvetica", "normal"); doc.text(($("c_o").value || "-").toUpperCase(), margin + 18, y);
+
+  // 3. TABLA CON ESPACIO DISTRIBUIDO (cellPadding mayor)
+  y += 8;
+  doc.autoTable({
+    startY: y,
+    margin: { left: margin, right: margin },
+    head: [["Código", "Descripción", "Cantidad", "U.M.", "P. Unitario", "Total Neto"]],
+    body: Q.map(q => [ q.code || "-", q.desc, q.qty.toLocaleString("es-CL"), q.um, Math.round(q.price).toLocaleString("es-CL"), Math.round(q.price * q.qty).toLocaleString("es-CL") ]),
+    theme: "plain",
+    styles: { fontSize: 8.5, cellPadding: 3, lineColor: [0,0,0], lineWidth: 0.1 },
+    headStyles: { fontStyle: "bold", fillColor: [240,240,240] },
+    columnStyles: { 0: { cellWidth: 25 }, 2: { halign: "right" }, 3: { halign: "center" }, 4: { halign: "right" }, 5: { halign: "right" } }
+  });
+
+  y = doc.lastAutoTable.finalY + 8; // Más espacio tras la tabla
+
+  // 4. TOTALES FINANCIEROS Y CONDICIONES (Recuadros más grandes)
+  const pieH = 32; 
+  doc.setLineWidth(0.3); doc.rect(margin, y, W - 2 * margin, pieH);
+  const splitX = 125; doc.line(splitX, y, splitX, y + pieH);
+
+  doc.setFontSize(8.5); doc.setFont("helvetica", "bold"); doc.text("CONDICIONES", margin + 3, y + 6);
+  doc.setFont("helvetica", "normal"); doc.text("Vigencia hasta: " + ($("e_vigencia").value || ""), margin + 3, y + 13);
+  doc.text("Condiciones de", margin + 3, y + 19); doc.text("venta: " + $("c_pago").value, margin + 3, y + 24);
+
+  const t = tot();
+  const rx = W - margin - 3;
+  let ty = y + 5;
+  const printTot = (lbl, val) => { doc.setFont("helvetica", "bold"); doc.text(lbl, splitX + 3, ty); doc.text(Math.round(val).toLocaleString("es-CL"), rx, ty, { align: "right" }); ty += 4.8; };
+  
+  printTot("SUB TOTAL", t.sub); printTot("% DESCUENTO", t.desc); printTot("FLETE", t.flete);
+  printTot("NETO", t.neto); printTot("I.V.A", t.iva); printTot("TOTAL", t.total);
+
+  y += pieH + 4;
+  doc.rect(margin, y, W - 2 * margin, 6);
+  doc.setFontSize(7.5); doc.setFont("helvetica", "normal");
+  doc.text("Reajustes:100% Alzas de Fábricas - Entregas sujetas a disponibilidad de Fábrica", W/2, y + 4, { align: "center" });
+
+  y += 10;
+  const finH = 26; doc.rect(margin, y, W - 2 * margin, finH); doc.line(100, y, 100, y + finH);
+  
+  doc.setFontSize(8.5); doc.setFont("helvetica", "bold"); doc.text("Notas:", margin + 3, y + 5);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(8);
+  if ($("nota").value) doc.text(doc.splitTextToSize($("nota").value, 80), margin + 3, y + 10);
+
+  doc.line(115, y + 14, 185, y + 14); 
+  doc.text("Cotización realizada por:", 150, y + 19, { align: "center" });
+  doc.setFont("helvetica", "bold"); doc.text($("e_n").value, 150, y + 24, { align: "center" });
+
+  if (save) return doc.save(`Cotizacion_${$("e_folio").value}.pdf`);
+  return doc.output("bloburl");
+}
+
+function preview() { const u = pdf(false); $("fr").src = u; $("ab").href = u; $("pv").hidden = false; }
+</script>
+</body>
+</html>
