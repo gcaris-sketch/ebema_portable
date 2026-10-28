@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cotizador Oficial EBEMA</title>
+  <!-- Librerías Externas -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    :root {
+      --ebema-red: #d32f2f;
+      --ebema-red-dark: #b71c1c;
+      --bg: #f4f6f8;
+      --card: #ffffff;
+      --ink: #1e293b;
+      --mut: #64748b;
+      --line: #cbd5e1;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      padding-bottom: 50px;
+    }
+    header {
+      background: var(--ink);
+      color: #fff;
+      padding: 14px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 4px solid var(--ebema-red);
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    header h1 {
+      margin: 0; font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 10px;
+    }
+    header h1 img {
+      height: 35px; width: auto; object-fit: contain; background: #fff; padding: 3px 8px; border-radius: 4px;
+    }
+    header small { color: #94a3b8; font-size: 13px; display: block; }
+    nav {
+      display: flex; gap: 6px; padding: 14px 14px 0; max-width: 1100px; margin: auto;
+    }
+    nav button {
+      flex: 1; padding: 12px; border: 1px solid var(--line); border-bottom: 0;
+      background: #e2e8f0; color: var(--mut); font: inherit; font-weight: 600;
+      border-radius: 8px 8px 0 0; cursor: pointer; transition: all 0.2s;
+    }
+    nav button.on {
+      background: var(--card); color: var(--ebema-red); border-top: 3px solid var(--ebema-red);
+    }
+    main {
+      max-width: 1100px; margin: auto; background: var(--card); border: 1px solid var(--line);
+      border-radius: 0 0 10px 10px; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    }
+    .grid-row {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 14px;
+    }
+    .field-group { display: flex; flex-direction: column; gap: 4px; position: relative; }
+    label { font-size: 12px; font-weight: 600; color: var(--mut); text-transform: uppercase; letter-spacing: 0.5px; }
+    input, textarea, select {
+      width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 6px; font: inherit; color: var(--ink); background: #fff; transition: border-color 0.2s;
+    }
+    input:focus, textarea:focus, select:focus { outline: none; border-color: var(--ebema-red); }
+    textarea { min-height: 70px; resize: vertical; }
+    button.btn-p {
+      background: var(--ebema-red); color: #fff; border: 0; border-radius: 6px; padding: 10px 18px; font: inherit; font-weight: 600; cursor: pointer; transition: background 0.2s;
+    }
+    button.btn-p:hover { background: var(--ebema-red-dark); }
+    button.btn-s {
+      background: #f1f5f9; color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 7px 12px; font: inherit; font-weight: 600; cursor: pointer;
+    }
+    button.btn-s:hover { background: #e2e8f0; }
+    h2.sec-title {
+      font-size: 14px; color: var(--ebema-red); border-bottom: 2px solid #fee2e2; padding-bottom: 4px; margin: 22px 0 12px; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .suggestions-box {
+      position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid var(--line); border-radius: 6px; max-height: 250px; overflow-y: auto; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .suggestion-item { padding: 10px 12px; cursor: pointer; font-size: 13px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; gap: 8px; }
+    .suggestion-item:hover { background: #f8fafc; }
+    
+    .item-stock { background-color: #f0f9ff; border-left: 4px solid #0284c7; }
+    .item-stock:hover { background-color: #e0f2fe; }
+    .item-calzada { background-color: #fffbeb; border-left: 4px solid #d97706; }
+    .item-calzada:hover { background-color: #fef3c7; }
+    .eti { font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px; color: #fff; }
+    .eti-stock { background-color: #0284c7; }
+    .eti-calzada { background-color: #d97706; }
+
+    .it {
+      border: 1px solid var(--line); border-radius: 6px; padding: 14px; margin-bottom: 10px; background: #fafafa;
+    }
+    .tot-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 15px; }
+    .tot-row.grand { font-size: 18px; font-weight: 700; color: var(--ebema-red); border-top: 2px solid var(--line); padding-top: 10px; margin-top: 6px; }
+    iframe { width: 100%; height: 600px; border: 1px solid var(--line); border-radius: 6px; margin-top: 14px; }
+    [hidden] { display: none !important; }
+
+    .multi-box {
+      border: 1px solid var(--line); border-radius: 6px; padding: 10px; background: #fff; max-height: 280px; overflow-y: auto; margin-top: 6px;
+    }
+    .multi-item {
+      display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-bottom: 1px solid #f1f5f9; font-size: 13px;
+    }
+    .multi-item:hover { background: #f8fafc; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>
+      <img id="logo-header" src="cropped-cropped-Ebema-Logo-Ebema-Removebg.png" alt="EBEMA" onerror="this.style.display='none'">
+      Cotizador Web
+    </h1>
+    <small id="est">Cargando bases de datos...</small>
+  </div>
+  <div>
+    <button class="btn-upload" onclick="document.getElementById('file_input').click()">Seleccionar Excel Manual</button>
+    <input type="file" id="file_input" accept=".xlsx,.xls" hidden onchange="cargarDesdeArchivo(event)">
+  </div>
+</header>
+
+<nav>
+  <button id="t1" class="on" onclick="tab(1)">Consulta Catálogo SAP</button>
+  <button id="t2" onclick="tab(2)">Cotización Actual (<span id="cnt">0</span>)</button>
+</nav>
+
+<main>
+  <!-- SECCIÓN 1: CONSULTA RÁPIDA DE PRECIOS -->
+  <section id="v1">
+    <h2 class="sec-title">Consulta Rápida de Precios Costo y Stock SAP</h2>
+    <div style="margin-bottom: 14px;">
+      <input id="q_cat" type="search" placeholder="Escribe código SAP o descripción del material para consultar precio costo rápido..." oninput="drawCat()">
+    </div>
+    <div id="res_cat"></div>
+  </section>
+
+  <!-- SECCIÓN 2: COTIZADOR PRINCIPAL -->
+  <section id="v2" hidden>
+    <h2 class="sec-title">Datos del Cliente</h2>
+    <div class="grid-row">
+      <div class="field-group" style="grid-column: span 2;">
+        <label>Buscar Cliente (Por Razón Social o Cód SAP)</label>
+        <input id="q_cli" type="search" placeholder="Escriba para buscar cliente en BD..." oninput="buscarCliente()">
+        <div id="cli_sug_box" class="suggestions-box" hidden></div>
+      </div>
+    </div>
+    <div class="grid-row">
+      <div class="field-group"><label>Razón Social Cliente</label><input id="c_n"></div>
+      <div class="field-group"><label>RUT / Cód SAP Cliente</label><input id="c_r"></div>
+      <div class="field-group"><label>Obra / Proyecto</label><input id="c_o"></div>
+      <div class="field-group">
+        <label>Condición de Pago</label>
+        <select id="c_pago">
+          <option value="Pagadero a 30 días" selected>Pagadero a 30 días</option>
+          <option value="Pagadero a 45 días">Pagadero a 45 días</option>
+          <option value="Pagadero a 60 días">Pagadero a 60 días</option>
+          <option value="Al contado">Al contado</option>
+          <option value="Transferencia Anticipada">Transferencia Anticipada</option>
+        </select>
+      </div>
+    </div>
+
+    <h2 class="sec-title">Ejecutivo de Ventas & Emisión</h2>
+    <div class="grid-row">
+      <div class="field-group">
+        <label>Encargado Comercial</label>
+        <input list="listaEncargados" id="e_n" placeholder="Seleccione o escriba...">
+        <datalist id="listaEncargados">
+          <option value="Gaston Caris">
+          <option value="Pamela Carreño">
+          <option value="Raquel Mora">
+          <option value="Susan Guajardo">
+          <option value="Tamara Nuñez">
+          <option value="Virginia Labbe">
+          <option value="Yessica Quezada">
+        </datalist>
+      </div>
+      <div class="field-group"><label>Teléfono / Contacto</label><input id="e_t" placeholder="+56 9 ..."></div>
+      <div class="field-group"><label>N° Folio Cotización</label><input id="e_folio" value="1065321"></div>
+      <div class="field-group"><label>Fecha Emisión</label><input id="e_fecha" type="date"></div>
+      <div class="field-group"><label>Vigencia Hasta</label><input id="e_vigencia" type="date"></div>
+    </div>
+
+    <h2 class="sec-title">Buscador de Productos & Selección Múltiple</h2>
+    <div class="field-group" style="margin-bottom: 10px;">
+      <input id="q_prod" type="search" placeholder="Buscar producto por Código SAP o nombre (ej: alambre puas)..." oninput="buscarProductoMulti()">
+    </div>
+    <div id="multi_container" hidden>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+        <span style="font-size:12px; font-weight:bold; color:var(--mut);">Marque los ítems a agregar:</span>
+        <button class="btn-s" style="padding:3px 10px; font-size:12px;" onclick="agregarSeleccionadosMulti()">+ Agregar Marcados</button>
+      </div>
+      <div id="multi_box" class="multi-box"></div>
+    </div>
+
+    <div style="background: #f8fafc; border: 1px dashed var(--line); padding: 14px; border-radius: 6px; margin-top: 14px; margin-bottom: 20px;">
+      <label style="display:block; margin-bottom:8px; color: var(--ink); font-weight:700;">+ Agregar Ítem Manualmente</label>
+      <div class="grid-row" style="margin-bottom:0;">
+        <div class="field-group" style="grid-column: span 2;"><label>Descripción</label><input id="m_d"></div>
+        <div class="field-group"><label>Código</label><input id="m_c"></div>
+        <div class="field-group"><label>Cant.</label><input id="m_q" type="number" value="1" min="1"></div>
+        <div class="field-group"><label>U.M.</label><input id="m_u" value="UN"></div>
+        <div class="field-group"><label>Precio Costo ($)</label><input id="m_p" type="number" min="0" value="0"></div>
+      </div>
+      <div style="text-align: right; margin-top: 10px;"><button class="btn-s" onclick="addManual()">Agregar Manual</button></div>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h2 class="sec-title" style="margin:0;">Ítems Seleccionados (<span id="cnt">0</span>)</h2>
+      <!-- APLICACIÓN GLOBAL DE MARGEN Y FLETE -->
+      <div style="display:flex; gap:10px; align-items:center;">
+        <div style="display:flex; align-items:center; gap:4px;">
+          <label style="font-size:11px;">Margen Global:</label>
+          <input id="glob_mg" type="number" placeholder="%" style="width:65px; padding:4px 6px;">
+          <button class="btn-s" style="padding:4px 8px; font-size:11px;" onclick="aplicarMargenGlobal()">Aplicar</button>
+        </div>
+        <div style="display:flex; align-items:center; gap:4px;">
+          <label style="font-size:11px;">Flete Unit. Global:</label>
+          <input id="glob_fl" type="number" placeholder="$" style="width:75px; padding:4px 6px;">
+          <button class="btn-s" style="padding:4px 8px; font-size:11px;" onclick="aplicarFleteGlobal()">Aplicar</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="items" style="margin-top:10px;"></div>
+
+    <div style="background: #f8fafc; border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-top: 16px;" id="tot"></div>
+
+    <h2 class="sec-title">Notas Visibles en PDF</h2>
+    <div class="field-group">
+      <textarea id="nota" placeholder="Escriba aquí sus observaciones (opcional)..."></textarea>
+    </div>
+
+    <div style="margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+      <button class="btn-p" onclick="preview()">Previsualizar PDF</button>
+      <button class="btn-p" style="background:#15803d;" onclick="pdf(true)">Descargar PDF Oficial</button>
+    </div>
+
+    <div id="pv" hidden>
+      <h2 class="sec-title">Vista Previa del Documento PDF</h2>
+      <iframe id="fr"></iframe>
+      <p style="text-align: right; margin-top: 6px;">
+        <a id="ab" target="_blank" style="color: var(--ebema-red); font-weight: bold; text-decoration: underline; cursor: pointer;">Abrir PDF en ventana completa ↗</a>
+      </p>
+    </div>
+  </section>
+</main>
+
+<script>
+const LOGO_FILENAME = "cropped-cropped-Ebema-Logo-Ebema-Removebg.png";
+var logoBase64Data = null; var logoAspect = 2.5;
+
+var B_Stock = [];
+var B_Calzada = [];
+var B_Clientes = [];
+var Q = [];
+var searchResultsCurrent = [];
+
+function $(id) { return document.getElementById(id); }
+function norm(s) { return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim(); }
+function clp(n) { return "$ " + Math.round(n || 0).toLocaleString("es-CL"); }
+function num(v) {
+  var s = String(v || "").replace(/[^\d.,-]/g, "");
+  if (s.includes(",") && s.includes(".")) s = s.replace(/\./g, "").replace(",", ".");
+  else if (s.includes(",")) s = s.replace(",", ".");
+  return parseFloat(s) || 0;
+}
+
+function tab(n) {
+  $("v1").hidden = (n !== 1);
+  $("v2").hidden = (n !== 2);
+  $("t1").className = (n === 1 ? "on" : "");
+  $("t2").className = (n === 2 ? "on" : "");
+}
+
+window.addEventListener("DOMContentLoaded", function() {
+  precargarLogo();
+  var hoy = new Date();
+  $("e_fecha").value = hoy.toISOString().split('T')[0];
+  var vig = new Date(); vig.setDate(hoy.getDate() + 7);
+  $("e_vigencia").value = vig.toISOString().split('T')[0];
+  cargarDatosIniciales();
+});
+
+function precargarLogo() {
+  var img = new Image(); img.src = LOGO_FILENAME + "?t=" + Date.now();
+  img.onload = function () {
+    logoAspect = img.width / img.height;
+    var canvas = document.createElement("canvas"); canvas.width = img.width; canvas.height = img.height;
+    var ctx = canvas.getContext("2d"); ctx.drawImage(img, 0, 0);
+    logoBase64Data = canvas.toDataURL("image/png");
+  };
+}
+
+async function fetchExcelWithMeta(url) {
+  try {
+    let r = await fetch(url + "?t=" + Date.now());
+    if (r.ok) {
+      let lm = r.headers.get("Last-Modified");
+      let fDate = lm ? new Date(lm) : null;
+      let buffer = await r.arrayBuffer();
+      let wb = XLSX.read(buffer, { type: "array" });
+      return { wb: wb, date: fDate };
+    }
+  } catch (e) {}
+  return null;
+}
+
+async function cargarDatosIniciales() {
+  $("est").textContent = "Cargando bases de datos con metadatos...";
+  let metaInfo = [];
+
+  let objStock = await fetchExcelWithMeta("./EXPORT.XLSX") || await fetchExcelWithMeta("./EXPORT.xlsx");
+  if (objStock) {
+    let rows = XLSX.utils.sheet_to_json(objStock.wb.Sheets[objStock.wb.SheetNames[0]], { defval: "" });
+    let h = Object.keys(rows[0]);
+    let cCode = h.find(k=>norm(k).includes("cod"));
+    let cDesc = h.find(k=>norm(k).includes("texto") || norm(k).includes("desc"));
+    let cPri = h.find(k=>norm(k).includes("zcco") || norm(k).includes("costo"));
+    let cStk = h.find(k=>norm(k).includes("libre"));
+    let cUm = h.find(k=>norm(k).includes("um"));
+    B_Stock = rows.map(r => ({
+      code: String(r[cCode]||"").replace(/\.0$/,""), desc: String(r[cDesc]||""), 
+      price: num(r[cPri]), stock: String(r[cStk]||"0"), um: String(r[cUm]||"UN").toUpperCase(), tipo: "Stock"
+    })).filter(p => p.code || p.desc);
+    var dStr = objStock.date ? objStock.date.toLocaleString("es-CL") : "Reciente";
+    metaInfo.push(`${B_Stock.length} Stock (${dStr})`);
+  }
+
+  let objCalzada = await fetchExcelWithMeta("./Lista de Materiales Activos_2026-10-28.xlsx");
+  if (objCalzada) {
+    let rows = XLSX.utils.sheet_to_json(objCalzada.wb.Sheets[objCalzada.wb.SheetNames[0]], { defval: "" });
+    B_Calzada = rows.map(r => ({
+      code: String(r["Código Material"]||"").replace(/\.0$/,""), desc: String(r["Nombre"]||""), 
+      price: 0, stock: "Calzada", um: String(r["UM"]||"UN").toUpperCase(), tipo: "Calzada"
+    })).filter(p => p.code || p.desc);
+    var dStr2 = objCalzada.date ? objCalzada.date.toLocaleString("es-CL") : "Reciente";
+    metaInfo.push(`${B_Calzada.length} Calzada (${dStr2})`);
+  }
+
+  let objClientes = await fetchExcelWithMeta("./CLIENTES RGA JULIO 2026.xlsx");
+  if (objClientes && objClientes.wb.SheetNames.includes("ASIGNADOS")) {
+    let rows = XLSX.utils.sheet_to_json(objClientes.wb.Sheets["ASIGNADOS"], { defval: "" });
+    B_Clientes = rows.map(r => ({
+      code: String(r["Cod. Cliente"]||"").replace(/\.0$/,""), nombre: String(r["Cliente"]||"")
+    })).filter(c => c.code && c.nombre);
+    var dStr3 = objClientes.date ? objClientes.date.toLocaleString("es-CL") : "Reciente";
+    metaInfo.push(`${B_Clientes.length} Clientes (${dStr3})`);
+  }
+
+  $("est").textContent = metaInfo.join(" | ") || "Error al cargar archivos (Revise servidor local)";
+}
+
+// BUSCADOR EN CATALOGO RAPIDO
+function drawCat() {
+  var t = norm($("q_cat").value);
+  var l1 = t ? B_Stock.filter(p => norm(p.code + " " + p.desc).includes(t)).slice(0, 20) : [];
+  var l2 = t ? B_Calzada.filter(p => norm(p.code + " " + p.desc).includes(t)).slice(0, 20) : [];
+  var l = l1.concat(l2);
+  
+  $("res_cat").innerHTML = !t 
+    ? '<p style="color:var(--mut); font-size:13px; text-align:center; padding:20px;">Escribe en la barra para explorar precios costo e inventario de SAP.</p>'
+    : l.length ? l.map(p => {
+        let clColor = p.tipo === "Stock" ? "item-stock" : "item-calzada";
+        let clEti = p.tipo === "Stock" ? "eti-stock" : "eti-calzada";
+        return `<div class="it ${clColor}" style="margin-bottom:6px;">
+          <div class="d">
+            <span class="eti ${clEti}">${p.tipo}</span> <b>${p.code}</b> — ${p.desc}
+            <div class="m">Stock: <b>${p.stock}</b> · U.M.: ${p.um}</div>
+          </div>
+          <div class="pr">
+            <strong>${p.tipo==='Stock'?clp(p.price)+' Costo':'Consultar Calzada'}</strong>
+          </div>
+        </div>`;
+      }).join("") : '<p style="color:var(--mut); padding:10px;">No se encontraron productos.</p>';
+}
+
+function buscarCliente() {
+  var t = norm($("q_cli").value);
+  var box = $("cli_sug_box");
+  if (t.length < 2) { box.hidden = true; return; }
+  var m = B_Clientes.filter(c => norm(c.code).includes(t) || norm(c.nombre).includes(t)).slice(0,10);
+  if (!m.length) { box.hidden = true; return; }
+  box.innerHTML = m.map(c => 
+    `<div class="suggestion-item" onclick="selCli('${c.code}', '${c.nombre.replace(/'/g,"")}')"><b>${c.code}</b> - ${c.nombre}</div>`
+  ).join("");
+  box.hidden = false;
+}
+
+function selCli(code, nombre) {
+  $("c_r").value = code; $("c_n").value = nombre;
+  $("q_cli").value = ""; $("cli_sug_box").hidden = true;
+}
+
+// SELECCIÓN MÚLTIPLE
+function buscarProductoMulti() {
+  var t = norm($("q_prod").value);
+  var container = $("multi_container");
+  var box = $("multi_box");
+  if (t.length < 2) { container.hidden = true; return; }
+
+  var m1 = B_Stock.filter(p => norm(p.code).includes(t) || norm(p.desc).includes(t)).slice(0, 15);
+  var m2 = B_Calzada.filter(p => norm(p.code).includes(t) || norm(p.desc).includes(t)).slice(0, 15);
+  searchResultsCurrent = m1.concat(m2);
+
+  if (!searchResultsCurrent.length) { container.hidden = true; return; }
+
+  box.innerHTML = searchResultsCurrent.map((p, idx) => {
+    let clEti = p.tipo === "Stock" ? "eti-stock" : "eti-calzada";
+    return `<div class="multi-item">
+      <input type="checkbox" id="chk_prod_${idx}">
+      <span class="eti ${clEti}">${p.tipo}</span>
+      <label for="chk_prod_${idx}" style="flex:1; cursor:pointer; text-transform:none; font-weight:normal; color:var(--ink);">
+        <b>${p.code}</b> - ${p.desc} <span style="font-size:11px; color:#666;">(${p.tipo==='Stock'?'Stk: '+p.stock+' | Costo: '+clp(p.price):'Calzada'})</span>
+      </label>
+    </div>`;
+  }).join("");
+  container.hidden = false;
+}
+
+function agregarSeleccionadosMulti() {
+  searchResultsCurrent.forEach((p, idx) => {
+    let chk = $(`chk_prod_${idx}`);
+    if (chk && chk.checked) {
+      addProdObj(p.code, p.desc, p.price, p.um, p.stock, p.tipo);
+    }
+  });
+  $("q_prod").value = "";
+  $("multi_container").hidden = true;
+  items();
+}
+
+function addProdObj(code, desc, price, um, stock, tipo) {
+  var x = Q.find(q => q.code === code && q.desc === desc);
+  if (x) { x.qty++; }
+  else { Q.push({ code: code, desc: desc, cost: price, pVenta: price, qty: 1, um: um, stock: stock, tipo: tipo, flete: 0, margen: 0 }); }
+}
+
+function addManual() {
+  var d = $("m_d").value.trim(), c = $("m_c").value.trim(), pr = +$("m_p").value || 0, q = +$("m_q").value || 1, u = $("m_u").value.trim() || "UN";
+  if (!d) return alert("Ingresa una descripción.");
+  Q.push({ code: c, desc: d, cost: pr, pVenta: pr, qty: q, um: u, stock: "-", tipo: "Manual", flete: 0, margen: 0 });
+  $("m_d").value = ""; $("m_c").value = ""; $("m_p").value = 0; $("m_q").value = 1;
+  items();
+}
+
+// CÁLCULO DUAL: MARGEN O PRECIO VENTA DIRECTO
+function updateItemFromMargen(i, valMg) {
+  let q = Q[i];
+  q.margen = Math.min(99.9, Math.max(0, +valMg || 0));
+  let cTotal = (q.cost || 0) + (q.flete || 0);
+  q.pVenta = cTotal / (1 - (q.margen / 100));
+  items();
+}
+
+function updateItemFromPVenta(i, valPVenta) {
+  let q = Q[i];
+  q.pVenta = Math.max(0, +valPVenta || 0);
+  let cTotal = (q.cost || 0) + (q.flete || 0);
+  if (q.pVenta > cTotal && q.pVenta > 0) {
+    q.margen = ((q.pVenta - cTotal) / q.pVenta) * 100;
+  } else {
+    q.margen = 0;
+  }
+  items();
+}
+
+function aplicarMargenGlobal() {
+  let mg = +$("glob_mg").value || 0;
+  Q.forEach((q, i) => {
+    updateItemFromMargen(i, mg);
+  });
+}
+
+function aplicarFleteGlobal() {
+  let fl = +$("glob_fl").value || 0;
+  Q.forEach((q, i) => {
+    q.flete = fl;
+    let cTotal = (q.cost || 0) + (q.flete || 0);
+    q.pVenta = cTotal / (1 - ((q.margen || 0) / 100));
+  });
+  items();
+}
+
+function calc(q) {
+  let cTotal = (q.cost || 0) + (q.flete || 0);
+  let vUni = q.pVenta || cTotal;
+  let ganUni = vUni - cTotal;
+  return { cUni: cTotal, vUni: vUni, ganUni: ganUni, cTot: cTotal * q.qty, vTot: vUni * q.qty, ganTot: ganUni * q.qty };
+}
+
+function items() {
+  $("cnt").textContent = Q.length;
+  $("items").innerHTML = Q.length ? Q.map(function(q, i) {
+    let r = calc(q);
+    let clEti = q.tipo === "Stock" ? "eti-stock" : (q.tipo === "Calzada" ? "eti-calzada" : "eti");
+    return `<div class="it">
+      <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+        <div>
+          <span class="eti ${clEti}" style="${q.tipo==='Manual'?'background:#64748b;':''}">${q.tipo}</span>
+          <b>${q.code ? q.code + " — " : ""}${q.desc}</b>
+          <span style="font-size:11px; color:#888; margin-left:10px;">Stock: ${q.stock} | UM: ${q.um}</span>
+        </div>
+        <button class="btn-s" style="color:#b71c1c; padding:2px 8px;" onclick="Q.splice(${i},1); items()">✕</button>
+      </div>
+      <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; background:#f8fafc; padding:10px; border-radius:6px;">
+        <div><label>Cantidad</label><input type="number" min="1" value="${q.qty}" style="width:70px;" onchange="Q[${i}].qty=Math.max(1,+this.value||1); items()"></div>
+        <div><label>Costo ($)</label><input type="number" min="0" value="${q.cost}" style="width:90px;" onchange="Q[${i}].cost=Math.max(0,+this.value||0); updateItemFromMargen(${i}, Q[${i}].margen)"></div>
+        <div><label>Flete ($)</label><input type="number" min="0" value="${q.flete}" style="width:85px;" onchange="Q[${i}].flete=Math.max(0,+this.value||0); updateItemFromMargen(${i}, Q[${i}].margen)"></div>
+        <div><label>Margen (%)</label><input type="number" min="0" max="99.9" step="0.1" value="${(q.margen||0).toFixed(1)}" style="width:75px;" onchange="updateItemFromMargen(${i}, this.value)"></div>
+        <div><label>P. Venta ($)</label><input type="number" min="0" value="${Math.round(q.pVenta)}" style="width:100px;" onchange="updateItemFromPVenta(${i}, this.value)"></div>
+        <div style="flex:1; text-align:right;">
+          <div style="font-size:11px; color:#059669;">Ganancia Línea: ${clp(r.ganTot)}</div>
+          <div style="font-size:16px; font-weight:bold; color:var(--ebema-red);">Venta: ${clp(r.vTot)}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join("") : '<p style="color:var(--mut); font-size:13px;">No hay ítems en la cotización.</p>';
+
+  var t = tot();
+  $("tot").innerHTML = `
+    <div class="tot-row"><span>Costo Total Cotización:</span> <strong>${clp(t.costo)}</strong></div>
+    <div class="tot-row" style="color:#059669;"><span>Margen de Ganancia Total (${t.pct.toFixed(1)}%):</span> <strong>${clp(t.ganancia)}</strong></div>
+    <div class="tot-row grand"><span>VALOR NETO VENTA:</span> <span>${clp(t.neto)}</span></div>
+    <div class="tot-row"><span>I.V.A (19%):</span> <strong>${clp(t.iva)}</strong></div>
+    <div class="tot-row grand" style="font-size:22px;"><span>TOTAL VENTA:</span> <span>${clp(t.total)}</span></div>
+  `;
+}
+
+function tot() {
+  let costo = 0, venta = 0, ganancia = 0;
+  Q.forEach(q => { let r = calc(q); costo += r.cTot; venta += r.vTot; ganancia += r.ganTot; });
+  let pct = costo > 0 ? (ganancia / costo) * 100 : 0;
+  return { costo: costo, ganancia: ganancia, pct: pct, neto: venta, iva: venta * 0.19, total: venta * 1.19 };
+}
+
+function pdf(save) {
+  var jsPDF = window.jspdf.jsPDF;
+  var doc = new jsPDF({ unit: "mm", format: "a4" });
+  var W = 210, margin = 12;
+
+  // 1. LOGO EN LA ESQUINA SUPERIOR IZQUIERDA (Y = 10 A 28)
+  if (logoBase64Data) {
+    try {
+      var logoW = 45; var logoH = logoW / (logoAspect || 2.5);
+      if(logoH > 18) { logoH = 18; logoW = logoH * logoAspect; }
+      doc.addImage(logoBase64Data, "PNG", margin, 10, logoW, logoH);
+    } catch (e) {}
+  }
+
+  // 2. COTIZACIÓN ARRIBA DERECHA
+  doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.setTextColor(30, 30, 30);
+  doc.text("COTIZACIÓN", W - margin, 14, { align: "right" });
+  doc.setFontSize(12); doc.setTextColor(211, 47, 47);
+  doc.text("N° " + ($("e_folio").value || "1065321"), W - margin, 21, { align: "right" });
+  doc.setFontSize(10); doc.setTextColor(60, 60, 60);
+  var fechaE = $("e_fecha").value ? $("e_fecha").value.split('-').reverse().join('-') : new Date().toLocaleDateString("es-CL");
+  doc.text("Fecha: " + fechaE, W - margin, 27, { align: "right" });
+
+  // 3. TEXTOS EMPRESA DESDE Y = 35 (NUNCA TOCA EL LOGO)
+  var y = 35;
+  doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(40, 40, 40);
+  doc.text("EBEMA S.A. Giro: Distribución de Materiales de Construcción RUT: 83.585.400-0", W / 2, y, { align: "center" });
+  doc.setFont("helvetica", "normal"); doc.setFontSize(8);
+  doc.text("Casa Matriz: Galvarino 8501, Quilicura - Santiago Fono:(2) 654 4400", W / 2, y + 4, { align: "center" });
+
+  y += 7;
+  doc.setDrawColor(80, 80, 80); doc.setLineWidth(0.4); doc.line(margin, y, W - margin, y);
+  
+  // 4. SUCURSALES EN 2 FILAS PARALELAS
+  y += 4;
+  doc.setFontSize(6.5);
+  var suc = [
+    { n: "Antofagasta", d: "Pedro Aguirre Cerda 11662", t: "(55) 480 100" },
+    { n: "La Serena", d: "Los Talleres 1930", t: "(51) 556 155" },
+    { n: "La Calera", d: "Aldunate 480-B", t: "(33) 221 111" },
+    { n: "San Fernando", d: "Chillán 761", t: "(72) 583 970" },
+    { n: "Talca", d: "KM 258, 6 Caletera O.", t: "(73) 2634240" },
+    { n: "Concepción", d: "Av. Gen. Bonilla 2098", t: "(41) 288 5850" },
+    { n: "Temuco", d: "Reyes Católicos 01550", t: "(45) 911 640" },
+    { n: "Puerto Montt", d: "Calle Puerto Lirquén S/N", t: "(65) 238 3930" }
+  ];
+  
+  var colW = (W - 2 * margin) / 4;
+  for(let i=0; i<4; i++){
+    let x = margin + (i * colW);
+    doc.setFont("helvetica", "bold"); doc.text("Sucursal "+suc[i].n, x, y);
+    doc.setFont("helvetica", "normal"); doc.text(suc[i].d, x, y + 3); doc.text("Tel: " + suc[i].t, x, y + 6);
+  }
+  y += 11;
+  for(let i=4; i<8; i++){
+    let x = margin + ((i-4) * colW);
+    doc.setFont("helvetica", "bold"); doc.text("Sucursal "+suc[i].n, x, y);
+    doc.setFont("helvetica", "normal"); doc.text(suc[i].d, x, y + 3); doc.text("Tel: " + suc[i].t, x, y + 6);
+  }
+
+  y += 9;
+  doc.line(margin, y, W - margin, y);
+
+  // DATOS CLIENTE
+  y += 5;
+  doc.setFontSize(8.5);
+  doc.setFont("helvetica", "bold"); doc.text("SR(ES):", margin, y);
+  doc.setFont("helvetica", "normal"); doc.text(($("c_n").value || "").toUpperCase(), margin + 16, y);
+  doc.setFont("helvetica", "bold"); doc.text("RUT:", 135, y);
+  doc.setFont("helvetica", "normal"); doc.text($("c_r").value || "", 146, y);
+  y += 5;
+  doc.setFont("helvetica", "bold"); doc.text("OBRA:", margin, y);
+  doc.setFont("helvetica", "normal"); doc.text(($("c_o").value || "-").toUpperCase(), margin + 16, y);
+
+  // TABLA
+  var tableBody = Q.map(function(q) {
+    let r = calc(q);
+    return [
+      q.code || "-", q.desc, q.qty.toLocaleString("es-CL"), q.um,
+      Math.round(r.vUni).toLocaleString("es-CL"), Math.round(r.vTot).toLocaleString("es-CL")
+    ];
+  });
+
+  doc.autoTable({
+    startY: y + 4,
+    margin: { left: margin, right: margin },
+    head: [["Código", "Descripción", "Cantidad", "U.M.", "P. Unitario", "Total Neto"]],
+    body: tableBody,
+    theme: "plain",
+    styles: { fontSize: 8.5, cellPadding: 2.8, lineColor: [0, 0, 0], lineWidth: 0.1 },
+    headStyles: { fontStyle: "bold", fillColor: [240, 240, 240], textColor: [0, 0, 0] },
+    columnStyles: { 0: { cellWidth: 28 }, 1: { cellWidth: "auto" }, 2: { halign: "right", cellWidth: 20 }, 3: { halign: "center", cellWidth: 15 }, 4: { halign: "right", cellWidth: 26 }, 5: { halign: "right", cellWidth: 28 } }
+  });
+
+  y = doc.lastAutoTable.finalY + 8;
+  var t = tot();
+  var fechaVig = $("e_vigencia").value ? $("e_vigencia").value.split('-').reverse().join('-') : "";
+
+  // PIE FINANCIERO
+  var pieH = 22;
+  doc.setLineWidth(0.3); doc.rect(margin, y, W - 2 * margin, pieH);
+  var splitX = 135; doc.line(splitX, y, splitX, y + pieH);
+
+  doc.setFont("helvetica", "bold"); doc.setFontSize(8.5); doc.text("CONDICIONES", margin + 3, y + 5);
+  doc.setFont("helvetica", "normal");
+  doc.text("Vigencia hasta: " + fechaVig, margin + 3, y + 11);
+  doc.text("Condiciones de venta: " + $("c_pago").value, margin + 3, y + 17);
+
+  var rx = W - margin - 3; var ty = y + 5.5; doc.setFontSize(8.5);
+  var printTotRow = function(lbl, val, isBold) {
+    doc.setFont("helvetica", isBold ? "bold" : "normal");
+    doc.text(lbl, splitX + 3, ty); doc.text(Math.round(val).toLocaleString("es-CL"), rx, ty, { align: "right" });
+    ty += 5;
+  };
+
+  printTotRow("NETO", t.neto, false);
+  printTotRow("I.V.A (19%)", t.iva, false);
+  printTotRow("TOTAL", t.total, true);
+
+  y += pieH + 4;
+  doc.rect(margin, y, W - 2 * margin, 6);
+  doc.setFontSize(7.5); doc.setFont("helvetica", "normal");
+  doc.text("Reajustes:100% Alzas de Fábricas - Entregas sujetas a disponibilidad de Fábrica", W / 2, y + 4, { align: "center" });
+
+  y += 10;
+  var finH = 25; doc.rect(margin, y, W - 2 * margin, finH); doc.line(100, y, 100, y + finH);
+  doc.setFontSize(8.5); doc.setFont("helvetica", "bold"); doc.text("Notas:", margin + 3, y + 5);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(7.5);
+  var notaTxt = $("nota").value.trim();
+  if (notaTxt) doc.text(doc.splitTextToSize(notaTxt, 80), margin + 3, y + 10);
+
+  var ejecNombre = $("e_n").value.trim() || "Ejecutivo de Ventas EBEMA";
+  doc.line(110, y + 14, 185, y + 14); doc.setFontSize(8); doc.setFont("helvetica", "normal");
+  doc.text("Cotización realizada por:", 147.5, y + 18, { align: "center" });
+  doc.setFont("helvetica", "bold"); doc.text(ejecNombre, 147.5, y + 22, { align: "center" });
+
+  var u = doc.output("bloburl");
+  if (save) { doc.save("Cotizacion_EBEMA_" + ($("e_folio").value || "1065321") + ".pdf"); return; }
+  return u;
+}
+
+function preview() {
+  var u = pdf(false);
+  $("fr").src = u;
+  $("ab").href = u;
+  $("pv").hidden = false;
+}
+</script>
+</body>
+</html>
