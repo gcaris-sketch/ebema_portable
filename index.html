@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cotizador Oficial EBEMA</title>
+  <!-- Librerías Externas -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    :root {
+      --ebema-red: #d32f2f;
+      --ebema-red-dark: #b71c1c;
+      --bg: #f4f6f8;
+      --card: #ffffff;
+      --ink: #1e293b;
+      --mut: #64748b;
+      --line: #cbd5e1;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      padding-bottom: 50px;
+    }
+    header {
+      background: var(--ink);
+      color: #fff;
+      padding: 14px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 4px solid var(--ebema-red);
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    header h1 {
+      margin: 0; font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 10px;
+    }
+    header h1 img {
+      height: 35px; width: auto; object-fit: contain; background: #fff; padding: 3px 8px; border-radius: 4px;
+    }
+    header small { color: #94a3b8; font-size: 13px; display: block; }
+
+    /* Botón "Seleccionar Excel Manual" con el mismo estilo de la página */
+    .btn-upload {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--ebema-red); color: #fff; border: 0; border-radius: 6px;
+      padding: 10px 18px; font: inherit; font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: background 0.2s, transform 0.1s;
+    }
+    .btn-upload:hover { background: var(--ebema-red-dark); }
+    .btn-upload:active { transform: translateY(1px); }
+    .btn-upload svg { width: 16px; height: 16px; flex: none; }
+
+    nav {
+      display: flex; gap: 6px; padding: 14px 14px 0; max-width: 1100px; margin: auto;
+    }
+    nav button {
+      flex: 1; padding: 12px; border: 1px solid var(--line); border-bottom: 0;
+      background: #e2e8f0; color: var(--mut); font: inherit; font-weight: 600;
+      border-radius: 8px 8px 0 0; cursor: pointer; transition: all 0.2s;
+    }
+    nav button.on {
+      background: var(--card); color: var(--ebema-red); border-top: 3px solid var(--ebema-red);
+    }
+    main {
+      max-width: 1100px; margin: auto; background: var(--card); border: 1px solid var(--line);
+      border-radius: 0 0 10px 10px; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    }
+    .grid-row {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 14px;
+    }
+    .field-group { display: flex; flex-direction: column; gap: 4px; position: relative; }
+    label { font-size: 12px; font-weight: 600; color: var(--mut); text-transform: uppercase; letter-spacing: 0.5px; }
+    input, textarea, select {
+      width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 6px; font: inherit; color: var(--ink); background: #fff; transition: border-color 0.2s;
+    }
+    input[type="checkbox"] { width: auto; padding: 0; accent-color: var(--ebema-red); }
+    input:focus, textarea:focus, select:focus { outline: none; border-color: var(--ebema-red); }
+    textarea { min-height: 70px; resize: vertical; }
+    button.btn-p {
+      background: var(--ebema-red); color: #fff; border: 0; border-radius: 6px; padding: 10px 18px; font: inherit; font-weight: 600; cursor: pointer; transition: background 0.2s;
+    }
+    button.btn-p:hover { background: var(--ebema-red-dark); }
+    button.btn-s {
+      background: #f1f5f9; color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 7px 12px; font: inherit; font-weight: 600; cursor: pointer;
+    }
+    button.btn-s:hover { background: #e2e8f0; }
+    h2.sec-title {
+      font-size: 14px; color: var(--ebema-red); border-bottom: 2px solid #fee2e2; padding-bottom: 4px; margin: 22px 0 12px; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .suggestions-box {
+      position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid var(--line); border-radius: 6px; max-height: 250px; overflow-y: auto; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .suggestion-item { padding: 10px 12px; cursor: pointer; font-size: 13px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; gap: 8px; }
+    .suggestion-item:hover { background: #f8fafc; }
+
+    .eti { font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px; color: #fff; }
+    .eti-stock { background-color: #0284c7; }
+    .eti-calzada { background-color: #d97706; }
+
+    .it {
+      border: 1px solid var(--line); border-radius: 6px; padding: 14px; margin-bottom: 10px; background: #fafafa;
+    }
+    .tot-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 15px; }
+    .tot-row.grand { font-size: 18px; font-weight: 700; color: var(--ebema-red); border-top: 2px solid var(--line); padding-top: 10px; margin-top: 6px; }
+    iframe { width: 100%; height: 600px; border: 1px solid var(--line); border-radius: 6px; margin-top: 14px; }
+    [hidden] { display: none !important; }
+
+    /* LISTADOS DE ÍTEMS: se agregan al pinchar (sin casillas) */
+    .pick-box {
+      border: 1px solid var(--line); border-radius: 8px; background: #fff; overflow: hidden;
+    }
+    #multi_box { max-height: 320px; overflow-y: auto; margin-top: 6px; }
+    .pick-item {
+      display: flex; align-items: center; gap: 12px; padding: 10px 12px; min-height: 52px;
+      border-bottom: 1px solid #f1f5f9; border-left: 4px solid transparent;
+      cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
+      transition: background 0.15s;
+    }
+    .pick-item:last-child { border-bottom: 0; }
+    .pick-item.t-stock { border-left-color: #0284c7; }
+    .pick-item.t-calzada { border-left-color: #d97706; }
+    .pick-item:hover { background: #f8fafc; }
+    .pick-item:active { background: #fee2e2; }
+    .pick-item.flash { animation: pickflash 0.6s ease-out; }
+    @keyframes pickflash { 0% { background: #bbf7d0; } 100% { background: transparent; } }
+    .pick-main { flex: 1; min-width: 0; font-size: 13px; line-height: 1.4; color: var(--ink); }
+    .pick-main .sub { font-size: 11px; color: var(--mut); margin-top: 2px; }
+    .pick-side { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
+    .pick-price { font-size: 13px; font-weight: 700; white-space: nowrap; }
+    .pick-count { font-size: 11px; font-weight: 700; color: #15803d; background: #dcfce7; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+    .pick-add {
+      width: 28px; height: 28px; border-radius: 50%; background: var(--ebema-red); color: #fff;
+      display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; line-height: 1; flex: none;
+    }
+    @media (max-width: 600px) {
+      .pick-item { flex-wrap: wrap; }
+      .pick-main { flex: 1 1 calc(100% - 50px); }
+      .pick-add { order: 1; }
+      .pick-side { order: 2; flex: 1 1 100%; align-items: flex-start; }
+      .pick-side .sug { text-align: left; }
+    }
+    .pick-empty { color: var(--mut); font-size: 13px; padding: 14px; text-align: center; }
+
+    .toast {
+      position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+      background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 600;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.25); transition: opacity 0.2s, transform 0.2s; z-index: 3000; max-width: 90vw;
+      text-align: center;
+    }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    /* PRECIO SUGERIDO ESTIMADO (color según confianza: rojo = baja, verde = alta) */
+    .sug {
+      display: inline-flex; flex-direction: column; border: 1px solid; border-radius: 6px;
+      padding: 3px 8px; font-size: 11px; line-height: 1.3; text-align: right; max-width: 100%;
+    }
+    .sug b { font-size: 12px; }
+    .sug small { font-size: 10px; opacity: 0.85; }
+    .sug.sug-inline { text-align: left; }
+    .sug-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .sug-warn { font-size: 11px; font-weight: 600; color: #b45309; }
+    .sug-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 11px; color: var(--mut); margin-top: 8px; }
+    .sug-legend .bar { width: 90px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, hsl(0,80%,62%), hsl(60,80%,55%), hsl(125,65%,45%)); }
+
+    /* GUARDAR / ABRIR COTIZACIÓN */
+    .savebar {
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+      background: #f8fafc; border: 1px solid var(--line);
+      border-radius: 8px; padding: 10px 14px; margin-bottom: 6px;
+    }
+    .savebar-txt { font-size: 12px; color: var(--mut); line-height: 1.4; flex: 1; min-width: 200px; }
+    .savebar-txt b { display: block; font-size: 13px; color: var(--ink); }
+    .savebar-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+    .with-ico { display: inline-flex; align-items: center; gap: 6px; }
+    .with-ico svg { width: 15px; height: 15px; flex: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>
+      <img id="logo-header" src="cropped-cropped-Ebema-Logo-Ebema-Removebg.png" alt="EBEMA" onerror="this.style.display='none'">
+      Cotizador Web
+    </h1>
+    <small id="est">Cargando bases de datos...</small>
+  </div>
+  <div>
+    <button type="button" class="btn-upload" onclick="document.getElementById('file_input').click()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Seleccionar Excel Manual
+    </button>
+    <input type="file" id="file_input" accept=".xlsx,.xls" multiple hidden onchange="cargarDesdeArchivo(event)">
+  </div>
+</header>
+
+<nav>
+  <button id="t1" class="on" onclick="tab(1)">Consulta Catálogo SAP</button>
+  <button id="t2" onclick="tab(2)">Cotización Actual (<span id="cnt">0</span>)</button>
+</nav>
+
+<main>
+  <!-- SECCIÓN 1: CONSULTA RÁPIDA DE PRECIOS -->
+  <section id="v1">
+    <h2 class="sec-title">Consulta Rápida de Precios Costo y Stock SAP</h2>
+    <div style="margin-bottom: 14px;">
+      <input id="q_cat" type="search" placeholder="Escribe código SAP o descripción del material para consultar precio costo rápido..." oninput="drawCat()">
+      <div class="sug-legend">Precio sugerido estimado. Probabilidad: <span class="bar"></span> baja → alta</div>
+    </div>
+    <div id="res_cat"></div>
+  </section>
+
+  <!-- SECCIÓN 2: COTIZADOR PRINCIPAL -->
+  <section id="v2" hidden>
+    <div class="savebar">
+      <div class="savebar-txt"><b>Guardar cotización para editarla después</b></div>
+      <div class="savebar-btns">
+        <button type="button" class="btn-s with-ico" onclick="guardarCotizacion()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Guardar cotización
+        </button>
+        <button type="button" class="btn-s with-ico" onclick="document.getElementById('file_cot').click()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          Abrir cotización guardada
+        </button>
+        <input type="file" id="file_cot" accept=".json,application/json" hidden onchange="cargarCotizacion(event)">
+      </div>
+    </div>
+    <h2 class="sec-title">Datos del Cliente</h2>
+    <div class="grid-row">
+      <div class="field-group" style="grid-column: span 2;">
+        <label>Buscar Cliente (Por Razón Social o Cód SAP)</label>
+        <input id="q_cli" type="search" placeholder="Escriba para buscar cliente en BD..." oninput="buscarCliente()">
+        <div id="cli_sug_box" class="suggestions-box" hidden></div>
+      </div>
+    </div>
+    <div class="grid-row">
+      <div class="field-group"><label>Razón Social Cliente</label><input id="c_n"></div>
+      <div class="field-group"><label>RUT / Cód SAP Cliente</label><input id="c_r"></div>
+      <div class="field-group"><label>Obra / Proyecto</label><input id="c_o"></div>
+      <div class="field-group">
+        <label>Condición de Pago</label>
+        <select id="c_pago">
+          <option value="Pagadero a 30 días" selected>Pagadero a 30 días</option>
+          <option value="Pagadero a 45 días">Pagadero a 45 días</option>
+          <option value="Pagadero a 60 días">Pagadero a 60 días</option>
+          <option value="Al contado">Al contado</option>
+          <option value="Transferencia Anticipada">Transferencia Anticipada</option>
+        </select>
+      </div>
+    </div>
+
+    <h2 class="sec-title">Ejecutivo de Ventas & Emisión</h2>
+    <div class="grid-row">
+      <div class="field-group">
+        <label>Encargado Comercial</label>
+        <input list="listaEncargados" id="e_n" placeholder="Seleccione o escriba..." autocomplete="off" oninput="autocompletarEjecutivo()" onchange="autocompletarEjecutivo()">
+        <datalist id="listaEncargados"></datalist>
+      </div>
+      <div class="field-group"><label>Teléfono / Contacto</label><input id="e_t" placeholder="+56 9 ..."></div>
+      <div class="field-group"><label>Correo Electrónico</label><input id="e_m" type="email" placeholder="usuario@ebema.cl"></div>
+      <div class="field-group"><label>N° Folio Cotización</label><input id="e_folio" value="1065321"></div>
+      <div class="field-group"><label>Fecha Emisión</label><input id="e_fecha" type="date"></div>
+      <div class="field-group"><label>Vigencia Hasta</label><input id="e_vigencia" type="date"></div>
+    </div>
+
+    <h2 class="sec-title">Buscador de Productos & Selección Múltiple</h2>
+    <div class="field-group" style="margin-bottom: 10px;">
+      <input id="q_prod" type="search" placeholder="Buscar producto por Código SAP o nombre (ej: alambre puas)..." oninput="buscarProductoMulti()">
+    </div>
+    <div id="multi_container" hidden>
+      <div style="font-size:12px; font-weight:bold; color:var(--mut);">Toque un ítem para agregarlo a la cotización (cada toque adicional suma 1 unidad):</div>
+      <div class="sug-legend" style="margin-bottom:6px;">Precio sugerido estimado. Probabilidad: <span class="bar"></span> baja → alta. Al agregar, el P. Venta parte con el sugerido.</div>
+      <div id="multi_box" class="pick-box"></div>
+    </div>
+
+    <div style="background: #f8fafc; border: 1px dashed var(--line); padding: 14px; border-radius: 6px; margin-top: 14px; margin-bottom: 20px;">
+      <label style="display:block; margin-bottom:8px; color: var(--ink); font-weight:700;">+ Agregar Ítem Manualmente</label>
+      <div class="grid-row" style="margin-bottom:0;">
+        <div class="field-group" style="grid-column: span 2;"><label>Descripción</label><input id="m_d"></div>
+        <div class="field-group"><label>Código</label><input id="m_c"></div>
+        <div class="field-group"><label>Cant.</label><input id="m_q" type="number" value="1" min="1"></div>
+        <div class="field-group"><label>U.M.</label><input id="m_u" value="UN"></div>
+        <div class="field-group"><label>Precio Costo ($)</label><input id="m_p" type="number" min="0" value="0"></div>
+      </div>
+      <div style="text-align: right; margin-top: 10px;"><button class="btn-s" onclick="addManual()">Agregar Manual</button></div>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+      <h2 class="sec-title" style="margin:0;">Ítems Seleccionados (<span id="cnt2">0</span>)</h2>
+      <!-- APLICACIÓN GLOBAL DE MARGEN Y FLETE -->
+      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <input id="chk_mf" type="checkbox" checked onchange="toggleMargenarFlete()">
+          <label for="chk_mf" style="font-size:11px; cursor:pointer;">Marginar flete</label>
+        </div>
+        <div style="display:flex; align-items:center; gap:4px;">
+          <label style="font-size:11px;">Margen Global:</label>
+          <input id="glob_mg" type="number" placeholder="%" style="width:65px; padding:4px 6px;">
+          <button class="btn-s" style="padding:4px 8px; font-size:11px;" onclick="aplicarMargenGlobal()">Aplicar</button>
+        </div>
+        <div style="display:flex; align-items:center; gap:4px;">
+          <label style="font-size:11px;">Flete Unit. Global:</label>
+          <input id="glob_fl" type="number" placeholder="$" style="width:75px; padding:4px 6px;">
+          <button class="btn-s" style="padding:4px 8px; font-size:11px;" onclick="aplicarFleteGlobal()">Aplicar</button>
+        </div>
+      </div>
+    </div>
+    <div id="formula_hint" style="font-size:11px; color:var(--mut); margin-top:8px;"></div>
+
+    <div id="items" style="margin-top:10px;"></div>
+
+    <div style="background: #f8fafc; border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-top: 16px;" id="tot"></div>
+
+    <h2 class="sec-title">Notas Visibles en PDF</h2>
+    <div class="field-group">
+      <textarea id="nota" placeholder="Escriba aquí sus observaciones (opcional)..."></textarea>
+    </div>
+
+    <div style="margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+      <button class="btn-p" onclick="preview()">Previsualizar PDF</button>
+      <button class="btn-p" style="background:#15803d;" onclick="pdf(true)">Descargar PDF Oficial</button>
+      <button class="btn-p" style="background:var(--ink);" onclick="abrirPdfExterno(event)">Abrir PDF en Ventana Externa</button>
+      <button class="btn-p" style="background:#475569;" onclick="guardarCotizacion()">Guardar Cotización (editable)</button>
+    </div>
+    <div id="ext_msg" style="font-size:12px; color:var(--mut); margin-top:8px;" hidden></div>
+
+    <div id="pv" hidden>
+      <h2 class="sec-title">Vista Previa del Documento PDF</h2>
+      <iframe id="fr"></iframe>
+      <p style="text-align: right; margin-top: 6px;">
+        <a id="ab" href="#" target="_blank" onclick="abrirPdfExterno(event)" style="color: var(--ebema-red); font-weight: bold; text-decoration: underline; cursor: pointer;">Abrir PDF en ventana completa ↗</a>
+      </p>
+    </div>
+  </section>
+</main>
+
+<div id="toast" class="toast"></div>
+
+<script>
+const LOGO_FILENAME = "cropped-cropped-Ebema-Logo-Ebema-Removebg.png";
+var logoBase64Data = null; var logoAspect = 2.5;
+
+var B_Stock = [];
+var B_Calzada = [];
+var B_Clientes = [];
+var Q = [];
+var resCat = [];    // resultados visibles en Consulta Catálogo SAP
+var resProd = [];   // resultados visibles en el buscador de la cotización
+var META = {};      // texto de estado por base cargada
+var margenarFlete = true;
+
+// ---- PRECIO SUGERIDO ESTIMADO (a partir del VA05) ----
+var VA05_ARCHIVO = "./VA05_Filtrado.xlsx";
+var VA05_DESDE = Math.round(Date.UTC(2026, 2, 2) / 86400000);   // 02-03-2026
+var VA05_CLASE = "ZV04";                                         // venta mesón con retiro
+var VA05_VENDEDORES = ["johanna cuadra", "susan guajardo"];
+var SUG_TOL = 0.03;    // los precios dentro de ±3% se consideran el mismo precio
+var SUG_HALF = 30;     // las ventas pierden la mitad de su peso cada 30 días
+var B_Ventas = {};     // { material: { UM: [ {d: día, p: precio unitario neto} ] } }
+var SUG_CACHE = {};
+
+// Encargados comerciales (al elegirlos se cargan teléfono y correo, ambos editables)
+var VENDEDORES = [
+  { n: "Gastón Caris",     t: "+56 9 9670 9528", e: "gcaris@ebema.cl" },
+  { n: "Johanna Cuadra",   t: "+56 9 3039 4596", e: "jcuadra@ebema.cl" },
+  { n: "Pamela Carreño",   t: "+56 9 3191 5176", e: "pcarreno@ebema.cl" },
+  { n: "Raquel Ramírez",   t: "+56 9 2381 0482", e: "rramirez@ebema.cl" },
+  { n: "Susan Guajardo",   t: "+56 9 7754 9381", e: "sguajardo@ebema.cl" },
+  { n: "Tamara Núñez",     t: "+56 9 7454 5935", e: "tnunez@ebema.cl" },
+  { n: "Virginia Labbé",   t: "+56 9 6105 9791", e: "vlabbe@ebema.cl" },
+  { n: "Yessica Quezada",  t: "+56 9 7572 9417", e: "yquezada@ebema.cl" }
+];
+var vendedorActual = null;
+
+function $(id) { return document.getElementById(id); }
+function norm(s) { return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim(); }
+function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+function clp(n) { return "$ " + Math.round(n || 0).toLocaleString("es-CL"); }
+function num(v) {
+  var s = String(v || "").replace(/[^\d.,-]/g, "");
+  if (s.includes(",") && s.includes(".")) s = s.replace(/\./g, "").replace(",", ".");
+  else if (s.includes(",")) s = s.replace(",", ".");
+  return parseFloat(s) || 0;
+}
+
+var toastTimer = null;
+function toast(msg) {
+  var t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { t.classList.remove("show"); }, 1700);
+}
+
+function tab(n) {
+  $("v1").hidden = (n !== 1);
+  $("v2").hidden = (n !== 2);
+  $("t1").className = (n === 1 ? "on" : "");
+  $("t2").className = (n === 2 ? "on" : "");
+}
+
+window.addEventListener("DOMContentLoaded", function() {
+  precargarLogo();
+  var hoy = new Date();
+  $("e_fecha").value = hoy.toISOString().split('T')[0];
+  var vig = new Date(); vig.setDate(hoy.getDate() + 7);
+  $("e_vigencia").value = vig.toISOString().split('T')[0];
+  $("listaEncargados").innerHTML = VENDEDORES.map(function (v) { return '<option value="' + esc(v.n) + '">'; }).join("");
+  drawCat();
+  items();
+  cargarDatosIniciales();
+});
+
+function precargarLogo() {
+  var img = new Image(); img.src = LOGO_FILENAME + "?t=" + Date.now();
+  img.onload = function () {
+    try {
+      logoAspect = img.width / img.height;
+      var canvas = document.createElement("canvas"); canvas.width = img.width; canvas.height = img.height;
+      var ctx = canvas.getContext("2d"); ctx.drawImage(img, 0, 0);
+      logoBase64Data = canvas.toDataURL("image/png");
+    } catch (e) {}
+  };
+}
+
+// ENCARGADO COMERCIAL: autocompleta teléfono y correo (editables / borrables)
+function autocompletarEjecutivo() {
+  var t = norm($("e_n").value);
+  var v = VENDEDORES.find(function (x) { return norm(x.n) === t; });
+  if (!v) { vendedorActual = null; return; }
+  if (vendedorActual === v.n) return;   // ya cargado: respeta lo que el usuario haya editado o borrado
+  vendedorActual = v.n;
+  $("e_t").value = v.t;
+  $("e_m").value = v.e;
+}
+
+// ---------- LECTURA DE EXCEL ----------
+function parseStock(wb) {
+  var rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
+  if (!rows.length) return [];
+  let h = Object.keys(rows[0]);
+  let cCode = h.find(k=>norm(k).includes("cod"));
+  let cDesc = h.find(k=>norm(k).includes("texto") || norm(k).includes("desc"));
+  let cPri = h.find(k=>norm(k).includes("zcco") || norm(k).includes("costo"));
+  let cStk = h.find(k=>norm(k).includes("libre"));
+  let cUm = h.find(k=>norm(k).includes("um"));
+  return rows.map(r => ({
+    code: String(r[cCode]||"").replace(/\.0$/,""), desc: String(r[cDesc]||""),
+    price: num(r[cPri]), stock: String(r[cStk]||"0"), um: String(r[cUm]||"UN").toUpperCase(), tipo: "Stock"
+  })).filter(p => p.code || p.desc);
+}
+
+function parseCalzada(wb) {
+  var rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
+  return rows.map(r => ({
+    code: String(r["Código Material"]||"").replace(/\.0$/,""), desc: String(r["Nombre"]||""),
+    price: 0, stock: "Calzada", um: String(r["UM"]||"UN").toUpperCase(), tipo: "Calzada"
+  })).filter(p => p.code || p.desc);
+}
+
+function parseClientes(wb) {
+  var rows = XLSX.utils.sheet_to_json(wb.Sheets["ASIGNADOS"], { defval: "" });
+  return rows.map(r => ({
+    code: String(r["Cod. Cliente"]||"").replace(/\.0$/,""), nombre: String(r["Cliente"]||"")
+  })).filter(c => c.code && c.nombre);
+}
+
+function detectarTipo(wb) {
+  if (wb.SheetNames.includes("ASIGNADOS")) return "clientes";
+  var rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
+  if (rows.length && Object.keys(rows[0]).some(function (k) { return norm(k).indexOf("valor neto") === 0; })) return "ventas";
+  if (rows.length && Object.prototype.hasOwnProperty.call(rows[0], "Código Material")) return "calzada";
+  return "stock";
+}
+
+// ---------- VENTAS VA05 -> PRECIO SUGERIDO ESTIMADO ----------
+function diaDe(v) {
+  if (v instanceof Date && !isNaN(v)) return Math.round((v.getTime() - v.getTimezoneOffset() * 60000) / 86400000);
+  if (typeof v === "number" && isFinite(v)) return Math.floor(v) - 25569;   // fecha serial de Excel
+  var s = String(v || "").trim(), m;
+  if ((m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/))) return Math.round(Date.UTC(+m[3], +m[2] - 1, +m[1]) / 86400000);
+  if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) return Math.round(Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000);
+  return null;
+}
+
+function hoyDia() {
+  var d = new Date();
+  return Math.round(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000);
+}
+
+function claveMat(code) { return String(code || "").trim().replace(/\.0$/, "").replace(/^0+/, ""); }
+
+function parseVentas(wb) {
+  var rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
+  var res = { map: {}, nl: 0, nm: 0 };
+  if (!rows.length) return res;
+  var h = Object.keys(rows[0]);
+  var cMat = h.find(k => norm(k) === "material") || h.find(k => norm(k).indexOf("material") === 0);
+  var cFec = h.find(k => norm(k).indexOf("fecha") === 0);
+  var cCla = h.find(k => norm(k).indexOf("clase") === 0);
+  var cCan = h.find(k => norm(k).indexOf("cantidad") === 0);
+  var cUm  = h.find(k => norm(k).indexOf("un.medida") === 0 || norm(k).indexOf("un medida") === 0);
+  var cVal = h.find(k => norm(k).indexOf("valor neto") === 0);
+  var cVen = h.find(k => norm(k).indexOf("nombre vendedor") === 0) || h.find(k => norm(k).indexOf("vendedor") >= 0);
+  if (!cMat || !cFec || !cCan || !cVal) return res;
+  rows.forEach(function (r) {
+    if (cCla && String(r[cCla] || "").trim().toUpperCase() !== VA05_CLASE) return;
+    if (cVen) {
+      var v = norm(r[cVen]);
+      if (!VA05_VENDEDORES.some(function (n) { return v.indexOf(n) >= 0; })) return;
+    }
+    var d = diaDe(r[cFec]);
+    if (d === null || d < VA05_DESDE) return;
+    var cant = num(r[cCan]), val = num(r[cVal]);
+    if (!(cant > 0) || !(val > 0)) return;
+    var key = claveMat(r[cMat]);
+    if (!key) return;
+    var um = String(cUm ? r[cUm] : "UN").trim().toUpperCase() || "UN";
+    if (!res.map[key]) { res.map[key] = {}; res.nm++; }
+    if (!res.map[key][um]) res.map[key][um] = [];
+    res.map[key][um].push({ d: d, p: val / cant });
+    res.nl++;
+  });
+  return res;
+}
+
+function setVentas(res) {
+  B_Ventas = res.map; SUG_CACHE = {};
+  return res;
+}
+
+// Estima el precio sugerido: agrupa precios parecidos (±3%), da más peso a las ventas recientes,
+// elige el grupo con más peso y entrega su mediana. La probabilidad sale de un modelo calibrado
+// contra el propio historial (qué tan seguido la venta siguiente cayó a ±3% de un estimado así).
+function calcSugerido(lista, hoy) {
+  var n = lista.length;
+  var pts = lista.map(function (s) { return { p: s.p, d: s.d, w: Math.pow(0.5, Math.max(0, hoy - s.d) / SUG_HALF) }; });
+  var Wt = 0, maxD = -1e9;
+  pts.forEach(function (x) { Wt += x.w; if (x.d > maxD) maxD = x.d; });
+  var bestW = -1, bestD = -1e9, bestMask = null;
+  for (var i = 0; i < n; i++) {
+    var W = 0, mask = [];
+    for (var j = 0; j < n; j++) {
+      var dentro = Math.abs(pts[j].p - pts[i].p) / pts[i].p <= SUG_TOL;
+      mask.push(dentro); if (dentro) W += pts[j].w;
+    }
+    if (W > bestW || (W === bestW && pts[i].d > bestD)) { bestW = W; bestD = pts[i].d; bestMask = mask; }
+  }
+  var miembros = [];
+  for (var k = 0; k < n; k++) if (bestMask[k]) miembros.push(pts[k]);
+  miembros.sort(function (a, b) { return a.p - b.p; });
+  var tot = 0; miembros.forEach(function (m) { tot += m.w; });
+  var acum = 0, mediana = miembros[miembros.length - 1].p;
+  for (var q = 0; q < miembros.length; q++) { acum += miembros[q].w; if (acum >= tot / 2) { mediana = miembros[q].p; break; } }
+  var share = bestW / Wt;
+  var age = Math.max(0, hoy - maxD);
+  var z = -1.1142 + 0.2614 * Math.log(1 + n) + 1.8518 * share - 0.3594 * Math.log(1 + age);
+  var prob = 1 / (1 + Math.exp(-z));
+  prob = Math.min(0.85, Math.max(0.05, prob));
+  return { price: Math.round(mediana), prob: prob, pct: Math.round(prob * 100), n: n, nc: miembros.length, age: age };
+}
+
+function estimarSugerido(code, umItem) {
+  var key = claveMat(code);
+  if (!key) return null;
+  var g = B_Ventas[key];
+  if (!g) return null;
+  var um = String(umItem || "").trim().toUpperCase();
+  var hoy = hoyDia();
+  var ck = key + "|" + um + "|" + hoy;
+  if (SUG_CACHE[ck] !== undefined) return SUG_CACHE[ck];
+  var ums = Object.keys(g), usar, distinta = false;
+  if (um && g[um]) usar = um;
+  else {
+    usar = ums.sort(function (a, b) { return g[b].length - g[a].length; })[0];
+    distinta = !!um && um !== usar;
+  }
+  var r = calcSugerido(g[usar], hoy);
+  r.um = usar; r.umDistinta = distinta;
+  SUG_CACHE[ck] = r;
+  return r;
+}
+
+function sugBadgeHTML(s, enLinea) {
+  if (!s) return "";
+  var hue = Math.round(Math.min(1, Math.max(0, (s.prob - 0.2) / 0.6)) * 125);
+  var st = "background:hsl(" + hue + ",80%,91%);border-color:hsl(" + hue + ",55%,62%);color:hsl(" + hue + ",70%,22%);";
+  var edad = s.age <= 0 ? "hoy" : "hace " + s.age + " d";
+  var um = s.umDistinta ? " (U.M. " + esc(s.um) + ")" : "";
+  return '<div class="sug' + (enLinea ? ' sug-inline' : '') + '" style="' + st + '" title="Estimado con ventas de mesón; no es el precio oficial del CRM. La probabilidad es la frecuencia histórica con que la venta siguiente quedó a ±3% de un estimado así.">' +
+    '<b>Sugerido est. ' + clp(s.price) + um + ' · prob. ' + s.pct + '%</b>' +
+    '<small>' + s.n + (s.n === 1 ? ' venta' : ' ventas') + ' · ' + s.nc + ' cerca de este precio · última venta ' + edad + '</small></div>';
+}
+
+function sugLinea(q, i) {
+  var s = estimarSugerido(q.code, q.um);
+  if (!s) return "";
+  var partes = [sugBadgeHTML(s, true)];
+  if (Math.round(q.pVenta || 0) !== s.price) {
+    partes.push('<button class="btn-s" style="padding:3px 10px; font-size:11px;" onclick="usarSugerido(' + i + ')">Usar sugerido</button>');
+  }
+  if (!s.umDistinta && q.pVenta > 0 && q.pVenta < s.price * 0.99) {
+    var pc = (1 - q.pVenta / s.price) * 100;
+    partes.push('<span class="sug-warn">P. Venta ' + pc.toFixed(1) + '% bajo el sugerido estimado: podría requerir liberación</span>');
+  }
+  if (s.umDistinta) {
+    partes.push('<span class="sug-warn">El historial está en U.M. ' + esc(s.um) + ' y este ítem está en ' + esc(q.um) + ': verifique antes de usarlo</span>');
+  }
+  return '<div class="sug-line">' + partes.join("") + '</div>';
+}
+
+// Al agregar un ítem, el P. Venta parte con el sugerido (y su margen calculado). Se puede cambiar libremente.
+function aplicarSugeridoInicial(q) {
+  var s = estimarSugerido(q.code, q.um);
+  if (!s || s.umDistinta) return;
+  q.pVenta = s.price;
+  if ((q.cost || 0) + (q.flete || 0) > 0) recalcMargenDesdePVenta(q); else q.margen = 0;
+  q.anclaSug = true;
+}
+
+function usarSugerido(i) {
+  var q = Q[i], s = q && estimarSugerido(q.code, q.um);
+  if (!s) return;
+  q.pVenta = s.price;
+  if ((q.cost || 0) + (q.flete || 0) > 0) recalcMargenDesdePVenta(q); else q.margen = 0;
+  q.anclaSug = true;
+  items();
+}
+
+function cambioCosto(i, v) {
+  var q = Q[i];
+  q.cost = Math.max(0, +v || 0);
+  if (q.anclaSug) { recalcMargenDesdePVenta(q); items(); }   // precio sugerido se mantiene, cambia el margen
+  else updateItemFromMargen(i, q.margen);
+}
+
+function renderEstado() {
+  var partes = [];
+  if (META.stock) partes.push(META.stock);
+  if (META.calzada) partes.push(META.calzada);
+  if (META.clientes) partes.push(META.clientes);
+  if (META.ventas) partes.push(META.ventas);
+  $("est").textContent = partes.join(" | ") || "No se cargaron archivos automáticamente. Use el botón Seleccionar Excel Manual.";
+}
+
+async function fetchExcelWithMeta(url) {
+  try {
+    let r = await fetch(url + "?t=" + Date.now());
+    if (r.ok) {
+      let lm = r.headers.get("Last-Modified");
+      let fDate = lm ? new Date(lm) : null;
+      let buffer = await r.arrayBuffer();
+      let wb = XLSX.read(buffer, { type: "array" });
+      return { wb: wb, date: fDate };
+    }
+  } catch (e) {}
+  return null;
+}
+
+async function cargarDatosIniciales() {
+  $("est").textContent = "Cargando bases de datos con metadatos...";
+
+  let objStock = await fetchExcelWithMeta("./EXPORT.XLSX") || await fetchExcelWithMeta("./EXPORT.xlsx");
+  if (objStock) {
+    B_Stock = parseStock(objStock.wb);
+    var dStr = objStock.date ? objStock.date.toLocaleString("es-CL") : "Reciente";
+    META.stock = `${B_Stock.length} Stock (${dStr})`;
+  }
+
+  let objCalzada = await fetchExcelWithMeta("./Lista de Materiales Activos_2026-10-28.xlsx");
+  if (objCalzada) {
+    B_Calzada = parseCalzada(objCalzada.wb);
+    var dStr2 = objCalzada.date ? objCalzada.date.toLocaleString("es-CL") : "Reciente";
+    META.calzada = `${B_Calzada.length} Calzada (${dStr2})`;
+  }
+
+  let objClientes = await fetchExcelWithMeta("./CLIENTES RGA JULIO 2026.xlsx");
+  if (objClientes && objClientes.wb.SheetNames.includes("ASIGNADOS")) {
+    B_Clientes = parseClientes(objClientes.wb);
+    var dStr3 = objClientes.date ? objClientes.date.toLocaleString("es-CL") : "Reciente";
+    META.clientes = `${B_Clientes.length} Clientes (${dStr3})`;
+  }
+
+  let objVentas = await fetchExcelWithMeta(VA05_ARCHIVO) || await fetchExcelWithMeta("./VA05_Filtrado.XLSX");
+  if (objVentas) {
+    var rv = setVentas(parseVentas(objVentas.wb));
+    var dStr4 = objVentas.date ? objVentas.date.toLocaleString("es-CL") : "Reciente";
+    META.ventas = `${rv.nm} Sugeridos (${rv.nl} ventas, ${dStr4})`;
+  }
+
+  renderEstado();
+  drawCat(); buscarProductoMulti(); items();
+}
+
+// CARGA MANUAL DE EXCEL (botón del encabezado): reconoce solo si es Stock, Calzada o Clientes
+async function cargarDesdeArchivo(ev) {
+  var files = Array.from((ev.target && ev.target.files) || []);
+  if (!files.length) return;
+  $("est").textContent = "Leyendo archivo(s)...";
+  var errores = [];
+  for (var i = 0; i < files.length; i++) {
+    var f = files[i];
+    try {
+      var buf = await f.arrayBuffer();
+      var wb = XLSX.read(buf, { type: "array" });
+      var dStr = f.lastModified ? new Date(f.lastModified).toLocaleString("es-CL") : "Reciente";
+      var tipo = detectarTipo(wb);
+      if (tipo === "ventas") {
+        var rv2 = setVentas(parseVentas(wb));
+        META.ventas = `${rv2.nm} Sugeridos (${rv2.nl} ventas, ${dStr}, manual)`;
+      } else if (tipo === "clientes") {
+        B_Clientes = parseClientes(wb);
+        META.clientes = `${B_Clientes.length} Clientes (${dStr}, manual)`;
+      } else if (tipo === "calzada") {
+        B_Calzada = parseCalzada(wb);
+        META.calzada = `${B_Calzada.length} Calzada (${dStr}, manual)`;
+      } else {
+        B_Stock = parseStock(wb);
+        META.stock = `${B_Stock.length} Stock (${dStr}, manual)`;
+      }
+    } catch (e) {
+      errores.push(f.name);
+    }
+  }
+  ev.target.value = "";
+  renderEstado();
+  if (errores.length) $("est").textContent += " | No se pudo leer: " + errores.join(", ");
+  drawCat(); buscarProductoMulti(); items();
+}
+
+// ---------- LISTADOS CLICKEABLES ----------
+function cantEnCotizacion(p) {
+  var q = Q.find(function (x) { return x.code === p.code && x.desc === p.desc; });
+  return q ? q.qty : 0;
+}
+
+function pickRow(src, idx, p) {
+  var cls = p.tipo === "Stock" ? "t-stock" : "t-calzada";
+  var eti = p.tipo === "Stock" ? "eti-stock" : "eti-calzada";
+  var precio = p.tipo === "Stock" ? clp(p.price) + " Costo" : "Consultar Calzada";
+  var c = cantEnCotizacion(p);
+  return `<div class="pick-item ${cls}" id="pk_${src}_${idx}" role="button" tabindex="0" onclick="pickItem('${src}', ${idx})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();pickItem('${src}', ${idx});}">
+    <div class="pick-main">
+      <span class="eti ${eti}">${p.tipo}</span> <b>${esc(p.code)}</b> — ${esc(p.desc)}
+      <div class="sub">Stock: <b>${esc(p.stock)}</b> · U.M.: ${esc(p.um)}</div>
+    </div>
+    <div class="pick-side">
+      <div class="pick-price">${precio}</div>
+      ${sugBadgeHTML(estimarSugerido(p.code, p.um))}
+      <div class="pick-count" id="bd_${src}_${idx}" ${c ? "" : "hidden"}>${c ? "En cotización: " + c : ""}</div>
+    </div>
+    <div class="pick-add">+</div>
+  </div>`;
+}
+
+function refreshBadges() {
+  [["cat", resCat], ["prod", resProd]].forEach(function (par) {
+    par[1].forEach(function (p, i) {
+      var el = $("bd_" + par[0] + "_" + i);
+      if (!el) return;
+      var c = cantEnCotizacion(p);
+      el.textContent = c ? "En cotización: " + c : "";
+      el.hidden = !c;
+    });
+  });
+}
+
+function pickItem(src, idx) {
+  var p = (src === "cat" ? resCat : resProd)[idx];
+  if (!p) return;
+  addProdObj(p.code, p.desc, p.price, p.um, p.stock, p.tipo);
+  items();
+  var el = $("pk_" + src + "_" + idx);
+  if (el) { el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
+  var qa = Q.find(function (x) { return x.code === p.code && x.desc === p.desc; });
+  toast("Agregado a la cotización: " + (p.code || p.desc) + (qa && qa.anclaSug && qa.qty === 1 ? " · P. Venta sugerido " + clp(qa.pVenta) : ""));
+}
+
+// BUSCADOR EN CATALOGO RAPIDO
+function drawCat() {
+  var t = norm($("q_cat").value);
+  var l1 = t ? B_Stock.filter(p => norm(p.code + " " + p.desc).includes(t)).slice(0, 20) : [];
+  var l2 = t ? B_Calzada.filter(p => norm(p.code + " " + p.desc).includes(t)).slice(0, 20) : [];
+  resCat = l1.concat(l2);
+
+  $("res_cat").innerHTML = !t
+    ? '<p style="color:var(--mut); font-size:13px; text-align:center; padding:20px;">Escribe en la barra para explorar precios costo e inventario de SAP. Toca un producto para agregarlo a la cotización.</p>'
+    : resCat.length
+      ? '<div class="pick-box">' + resCat.map(function (p, i) { return pickRow("cat", i, p); }).join("") + '</div>'
+      : '<p style="color:var(--mut); padding:10px;">No se encontraron productos.</p>';
+}
+
+function buscarCliente() {
+  var t = norm($("q_cli").value);
+  var box = $("cli_sug_box");
+  if (t.length < 2) { box.hidden = true; return; }
+  var m = B_Clientes.filter(c => norm(c.code).includes(t) || norm(c.nombre).includes(t)).slice(0,10);
+  if (!m.length) { box.hidden = true; return; }
+  box.innerHTML = m.map(c =>
+    `<div class="suggestion-item" onclick="selCli('${c.code}', '${c.nombre.replace(/'/g,"")}')"><b>${c.code}</b> - ${c.nombre}</div>`
+  ).join("");
+  box.hidden = false;
+}
+
+function selCli(code, nombre) {
+  $("c_r").value = code; $("c_n").value = nombre;
+  $("q_cli").value = ""; $("cli_sug_box").hidden = true;
+}
+
+// SELECCIÓN MÚLTIPLE (se agrega al pinchar cada ítem)
+function buscarProductoMulti() {
+  var t = norm($("q_prod").value);
+  var container = $("multi_container");
+  var box = $("multi_box");
+  if (t.length < 2) { container.hidden = true; resProd = []; return; }
+
+  var m1 = B_Stock.filter(p => norm(p.code).includes(t) || norm(p.desc).includes(t)).slice(0, 15);
+  var m2 = B_Calzada.filter(p => norm(p.code).includes(t) || norm(p.desc).includes(t)).slice(0, 15);
+  resProd = m1.concat(m2);
+
+  box.innerHTML = resProd.length
+    ? resProd.map(function (p, i) { return pickRow("prod", i, p); }).join("")
+    : '<div class="pick-empty">No se encontraron productos.</div>';
+  container.hidden = false;
+}
+
+function addProdObj(code, desc, price, um, stock, tipo) {
+  var x = Q.find(q => q.code === code && q.desc === desc);
+  if (x) { x.qty++; }
+  else { Q.push({ code: code, desc: desc, cost: price, pVenta: price, qty: 1, um: um, stock: stock, tipo: tipo, flete: 0, margen: 0 }); aplicarSugeridoInicial(Q[Q.length - 1]); }
+}
+
+function addManual() {
+  var d = $("m_d").value.trim(), c = $("m_c").value.trim(), pr = +$("m_p").value || 0, q = +$("m_q").value || 1, u = $("m_u").value.trim() || "UN";
+  if (!d) return alert("Ingresa una descripción.");
+  Q.push({ code: c, desc: d, cost: pr, pVenta: pr, qty: q, um: u, stock: "-", tipo: "Manual", flete: 0, margen: 0 });
+  $("m_d").value = ""; $("m_c").value = ""; $("m_p").value = 0; $("m_q").value = 1;
+  items();
+}
+
+// ---------- CÁLCULO DUAL: MARGEN O PRECIO VENTA DIRECTO ----------
+// Margen sobre precio de venta.
+// Margenar flete (activado): P.Venta = (Costo + Flete) / (1 - Margen)   [así lo calcula el CRM]
+// Margenar flete (desactivado): P.Venta = Costo / (1 - Margen) + Flete
+function recalcPVentaDesdeMargen(q) {
+  let c = q.cost || 0, f = q.flete || 0;
+  if (c + f <= 0) return;   // sin costo no hay base: se respeta el precio digitado a mano
+  if (c <= 0 && q.anclaSug) return;   // ítem sin costo con precio sugerido: se respeta el sugerido
+  let m = Math.min(99.9, Math.max(0, q.margen || 0)) / 100;
+  let p = margenarFlete ? (c + f) / (1 - m) : c / (1 - m) + f;
+  q.pVenta = Math.round(p);
+}
+
+function recalcMargenDesdePVenta(q) {
+  let c = q.cost || 0, f = q.flete || 0;
+  let base = margenarFlete ? (c + f) : c;     // costo sobre el cual se aplica el margen
+  let pv = margenarFlete ? q.pVenta : (q.pVenta - f);
+  if (pv > base && pv > 0) {
+    q.margen = Math.min(99.9, ((pv - base) / pv) * 100);
+  } else {
+    q.margen = 0;
+  }
+}
+
+function updateItemFromMargen(i, valMg) {
+  let q = Q[i];
+  q.margen = Math.min(99.9, Math.max(0, +valMg || 0));
+  recalcPVentaDesdeMargen(q);
+  items();
+}
+
+function updateItemFromPVenta(i, valPVenta) {
+  let q = Q[i];
+  q.pVenta = Math.max(0, Math.round(+valPVenta || 0));
+  recalcMargenDesdePVenta(q);
+  items();
+}
+
+function aplicarMargenGlobal() {
+  let mg = Math.min(99.9, Math.max(0, +$("glob_mg").value || 0));
+  Q.forEach(q => { q.anclaSug = false; q.margen = mg; recalcPVentaDesdeMargen(q); });
+  items();
+}
+
+function aplicarFleteGlobal() {
+  let fl = Math.max(0, +$("glob_fl").value || 0);
+  Q.forEach(q => { q.flete = fl; recalcPVentaDesdeMargen(q); });
+  items();
+}
+
+function toggleMargenarFlete() {
+  margenarFlete = $("chk_mf").checked;
+  Q.forEach(q => { if (q.anclaSug) recalcMargenDesdePVenta(q); else recalcPVentaDesdeMargen(q); });
+  items();
+}
+
+function calc(q) {
+  let cTotal = (q.cost || 0) + (q.flete || 0);
+  let vUni = Math.round(q.pVenta || cTotal);
+  let ganUni = vUni - cTotal;
+  return { cUni: cTotal, vUni: vUni, ganUni: ganUni, cTot: cTotal * q.qty, vTot: vUni * q.qty, ganTot: ganUni * q.qty };
+}
+
+function items() {
+  $("cnt").textContent = Q.length;
+  $("cnt2").textContent = Q.length;
+  $("formula_hint").textContent = margenarFlete
+    ? "Fórmula: P. Venta = (Costo + Flete) ÷ (1 − Margen). El flete queda incluido y margenado dentro del precio unitario del PDF."
+    : "Fórmula: P. Venta = Costo ÷ (1 − Margen) + Flete. El flete se suma sin margen al precio unitario del PDF.";
+  $("items").innerHTML = Q.length ? Q.map(function(q, i) {
+    let r = calc(q);
+    let clEti = q.tipo === "Stock" ? "eti-stock" : (q.tipo === "Calzada" ? "eti-calzada" : "eti");
+    return `<div class="it">
+      <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+        <div>
+          <span class="eti ${clEti}" style="${q.tipo==='Manual'?'background:#64748b;':''}">${q.tipo}</span>
+          <b>${q.code ? esc(q.code) + " — " : ""}${esc(q.desc)}</b>
+          <span style="font-size:11px; color:#888; margin-left:10px;">Stock: ${esc(q.stock)} | UM: ${esc(q.um)}</span>
+        </div>
+        <button class="btn-s" style="color:#b71c1c; padding:2px 8px;" onclick="Q.splice(${i},1); items()">✕</button>
+      </div>
+      ${sugLinea(q, i)}
+      <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; background:#f8fafc; padding:10px; border-radius:6px;">
+        <div><label>Cantidad</label><input type="number" min="1" value="${q.qty}" style="width:70px;" onchange="Q[${i}].qty=Math.max(1,+this.value||1); items()"></div>
+        <div><label>Costo ($)</label><input type="number" min="0" value="${q.cost}" style="width:90px;" onchange="cambioCosto(${i}, this.value)"></div>
+        <div><label>Flete ($)</label><input type="number" min="0" value="${q.flete}" style="width:85px;" onchange="Q[${i}].flete=Math.max(0,+this.value||0); updateItemFromMargen(${i}, Q[${i}].margen)"></div>
+        <div><label>Margen (%)</label><input type="number" min="0" max="99.9" step="0.1" value="${(q.margen||0).toFixed(1)}" style="width:75px;" onchange="Q[${i}].anclaSug=false; updateItemFromMargen(${i}, this.value)"></div>
+        <div><label>P. Venta ($)</label><input type="number" min="0" value="${Math.round(q.pVenta)}" style="width:100px;" onchange="Q[${i}].anclaSug=false; updateItemFromPVenta(${i}, this.value)"></div>
+        <div style="flex:1; text-align:right;">
+          <div style="font-size:11px; color:#059669;">Ganancia Línea: ${clp(r.ganTot)}</div>
+          <div style="font-size:16px; font-weight:bold; color:var(--ebema-red);">Venta: ${clp(r.vTot)}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join("") : '<p style="color:var(--mut); font-size:13px;">No hay ítems en la cotización.</p>';
+
+  var t = tot();
+  $("tot").innerHTML = `
+    <div class="tot-row"><span>Costo Total Cotización (Costo + Flete):</span> <strong>${clp(t.costo)}</strong></div>
+    <div class="tot-row" style="color:#059669;"><span>Margen de Ganancia Total (${t.pct.toFixed(1)}% sobre venta):</span> <strong>${clp(t.ganancia)}</strong></div>
+    <div class="tot-row grand"><span>VALOR NETO VENTA:</span> <span>${clp(t.neto)}</span></div>
+    <div class="tot-row"><span>I.V.A (19%):</span> <strong>${clp(t.iva)}</strong></div>
+    <div class="tot-row grand" style="font-size:22px;"><span>TOTAL VENTA:</span> <span>${clp(t.total)}</span></div>
+  `;
+  refreshBadges();
+}
+
+function tot() {
+  let costo = 0, venta = 0, ganancia = 0;
+  Q.forEach(q => { let r = calc(q); costo += r.cTot; venta += r.vTot; ganancia += r.ganTot; });
+  let pct = venta > 0 ? (ganancia / venta) * 100 : 0;
+  return { costo: costo, ganancia: ganancia, pct: pct, neto: venta, iva: venta * 0.19, total: venta * 1.19 };
+}
+
+// ---------- GUARDAR / ABRIR COTIZACIÓN (archivo editable) ----------
+function descargarBlob(blob, nombre) {
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url; a.download = nombre;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+}
+
+function guardarCotizacion() {
+  var data = {
+    app: "cotizador-ebema", version: 1, guardado: new Date().toISOString(),
+    cliente: { nombre: $("c_n").value, rut: $("c_r").value, obra: $("c_o").value, pago: $("c_pago").value },
+    ejecutivo: { nombre: $("e_n").value, telefono: $("e_t").value, correo: $("e_m").value, folio: $("e_folio").value, fecha: $("e_fecha").value, vigencia: $("e_vigencia").value },
+    nota: $("nota").value,
+    margenarFlete: margenarFlete,
+    globalMargen: $("glob_mg").value, globalFlete: $("glob_fl").value,
+    items: Q
+  };
+  var cli = norm($("c_n").value).replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 30);
+  var nombre = "Cotizacion_" + ($("e_folio").value || "SN") + (cli ? "_" + cli : "") + ".json";
+  descargarBlob(new Blob([JSON.stringify(data, null, 1)], { type: "application/json" }), nombre);
+  toast("Cotización guardada: " + nombre);
+}
+
+async function cargarCotizacion(ev) {
+  var f = ev.target.files && ev.target.files[0];
+  if (!f) return;
+  var d = null;
+  try { d = JSON.parse(await f.text()); } catch (e) { d = null; }
+  ev.target.value = "";
+  if (!d || d.app !== "cotizador-ebema" || !Array.isArray(d.items)) {
+    return alert("El archivo no es una cotización guardada con este cotizador.");
+  }
+  if (Q.length && !confirm("Se reemplazará la cotización actual por la del archivo. ¿Continuar?")) return;
+
+  var c = d.cliente || {}, e = d.ejecutivo || {};
+  $("c_n").value = c.nombre || ""; $("c_r").value = c.rut || ""; $("c_o").value = c.obra || "";
+  if (c.pago) $("c_pago").value = c.pago;
+  $("e_n").value = e.nombre || ""; $("e_t").value = e.telefono || ""; $("e_m").value = e.correo || "";
+  if (e.folio) $("e_folio").value = e.folio;
+  if (e.fecha) $("e_fecha").value = e.fecha;
+  if (e.vigencia) $("e_vigencia").value = e.vigencia;
+  var vend = VENDEDORES.find(function (x) { return norm(x.n) === norm(e.nombre); });
+  vendedorActual = vend ? vend.n : null;   // evita que se pisen el teléfono/correo cargados
+  $("nota").value = d.nota || "";
+  margenarFlete = d.margenarFlete !== false;
+  $("chk_mf").checked = margenarFlete;
+  $("glob_mg").value = d.globalMargen || ""; $("glob_fl").value = d.globalFlete || "";
+  Q = d.items.map(function (x) {
+    return {
+      code: String(x.code || ""), desc: String(x.desc || ""), cost: Math.max(0, +x.cost || 0),
+      pVenta: Math.max(0, +x.pVenta || 0), qty: Math.max(1, +x.qty || 1), um: String(x.um || "UN"),
+      stock: (x.stock == null ? "-" : String(x.stock)), tipo: String(x.tipo || "Manual"),
+      flete: Math.max(0, +x.flete || 0), margen: Math.min(99.9, Math.max(0, +x.margen || 0)), anclaSug: !!x.anclaSug
+    };
+  });
+  $("pv").hidden = true;
+  items();
+  tab(2);
+  toast("Cotización cargada: " + Q.length + (Q.length === 1 ? " ítem" : " ítems"));
+}
+
+// ---------- PDF ----------
+function buildPdf() {
+  var jsPDF = window.jspdf.jsPDF;
+  var doc = new jsPDF({ unit: "mm", format: "a4" });
+  var W = 210, margin = 12;
+
+  // 1. LOGO EN LA ESQUINA SUPERIOR IZQUIERDA (Y = 10 A 28)
+  if (logoBase64Data) {
+    try {
+      var logoW = 45; var logoH = logoW / (logoAspect || 2.5);
+      if(logoH > 18) { logoH = 18; logoW = logoH * logoAspect; }
+      doc.addImage(logoBase64Data, "PNG", margin, 10, logoW, logoH);
+    } catch (e) {}
+  }
+
+  // 2. COTIZACIÓN ARRIBA DERECHA
+  doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.setTextColor(30, 30, 30);
+  doc.text("COTIZACIÓN", W - margin, 14, { align: "right" });
+  doc.setFontSize(12); doc.setTextColor(211, 47, 47);
+  doc.text("N° " + ($("e_folio").value || "1065321"), W - margin, 21, { align: "right" });
+  doc.setFontSize(10); doc.setTextColor(60, 60, 60);
+  var fechaE = $("e_fecha").value ? $("e_fecha").value.split('-').reverse().join('-') : new Date().toLocaleDateString("es-CL");
+  doc.text("Fecha: " + fechaE, W - margin, 27, { align: "right" });
+
+  // 3. TEXTOS EMPRESA DESDE Y = 35 (NUNCA TOCA EL LOGO)
+  var y = 35;
+  doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(40, 40, 40);
+  doc.text("EBEMA S.A. Giro: Distribución de Materiales de Construcción RUT: 83.585.400-0", W / 2, y, { align: "center" });
+  doc.setFont("helvetica", "normal"); doc.setFontSize(8);
+  doc.text("Casa Matriz: Galvarino 8501, Quilicura - Santiago Fono:(2) 654 4400", W / 2, y + 4, { align: "center" });
+
+  y += 7;
+  doc.setDrawColor(80, 80, 80); doc.setLineWidth(0.4); doc.line(margin, y, W - margin, y);
+
+  // 4. SUCURSALES EN 2 FILAS PARALELAS
+  y += 4;
+  doc.setFontSize(6.5);
+  var suc = [
+    { n: "Antofagasta", d: "Pedro Aguirre Cerda 11662", t: "(55) 480 100" },
+    { n: "La Serena", d: "Los Talleres 1930", t: "(51) 556 155" },
+    { n: "La Calera", d: "Aldunate 480-B", t: "(33) 221 111" },
+    { n: "San Fernando", d: "Chillán 761", t: "(72) 583 970" },
+    { n: "Talca", d: "KM 258, 6 Caletera O.", t: "(73) 2634240" },
+    { n: "Concepción", d: "Av. Gen. Bonilla 2098", t: "(41) 288 5850" },
+    { n: "Temuco", d: "Reyes Católicos 01550", t: "(45) 911 640" },
+    { n: "Puerto Montt", d: "Calle Puerto Lirquén S/N", t: "(65) 238 3930" }
+  ];
+
+  var colW = (W - 2 * margin) / 4;
+  for(let i=0; i<4; i++){
+    let x = margin + (i * colW);
+    doc.setFont("helvetica", "bold"); doc.text("Sucursal "+suc[i].n, x, y);
+    doc.setFont("helvetica", "normal"); doc.text(suc[i].d, x, y + 3); doc.text("Tel: " + suc[i].t, x, y + 6);
+  }
+  y += 11;
+  for(let i=4; i<8; i++){
+    let x = margin + ((i-4) * colW);
+    doc.setFont("helvetica", "bold"); doc.text("Sucursal "+suc[i].n, x, y);
+    doc.setFont("helvetica", "normal"); doc.text(suc[i].d, x, y + 3); doc.text("Tel: " + suc[i].t, x, y + 6);
+  }
+
+  y += 9;
+  doc.line(margin, y, W - margin, y);
+
+  // DATOS CLIENTE
+  y += 5;
+  doc.setFontSize(8.5);
+  doc.setFont("helvetica", "bold"); doc.text("SR(ES):", margin, y);
+  doc.setFont("helvetica", "normal"); doc.text(($("c_n").value || "").toUpperCase(), margin + 16, y);
+  doc.setFont("helvetica", "bold"); doc.text("RUT:", 135, y);
+  doc.setFont("helvetica", "normal"); doc.text($("c_r").value || "", 146, y);
+  y += 5;
+  doc.setFont("helvetica", "bold"); doc.text("OBRA:", margin, y);
+  doc.setFont("helvetica", "normal"); doc.text(($("c_o").value || "-").toUpperCase(), margin + 16, y);
+
+  // TABLA
+  var tableBody = Q.map(function(q) {
+    let r = calc(q);
+    return [
+      q.code || "-", q.desc, q.qty.toLocaleString("es-CL"), q.um,
+      Math.round(r.vUni).toLocaleString("es-CL"), Math.round(r.vTot).toLocaleString("es-CL")
+    ];
+  });
+
+  doc.autoTable({
+    startY: y + 4,
+    margin: { left: margin, right: margin },
+    head: [["Código", "Descripción", "Cantidad", "U.M.", "P. Unitario", "Total Neto"]],
+    body: tableBody,
+    theme: "plain",
+    styles: { fontSize: 8.5, cellPadding: 2.8, lineColor: [0, 0, 0], lineWidth: 0.1 },
+    headStyles: { fontStyle: "bold", fillColor: [240, 240, 240], textColor: [0, 0, 0] },
+    columnStyles: { 0: { cellWidth: 28 }, 1: { cellWidth: "auto" }, 2: { halign: "right", cellWidth: 20 }, 3: { halign: "center", cellWidth: 15 }, 4: { halign: "right", cellWidth: 26 }, 5: { halign: "right", cellWidth: 28 } }
+  });
+
+  y = doc.lastAutoTable.finalY + 8;
+  // Si el cierre no cabe en la página actual, pasa a una página nueva
+  if (y + 66 > 287) { doc.addPage(); y = 15; }
+  var t = tot();
+  var fechaVig = $("e_vigencia").value ? $("e_vigencia").value.split('-').reverse().join('-') : "";
+
+  // PIE FINANCIERO
+  var pieH = 22;
+  doc.setLineWidth(0.3); doc.rect(margin, y, W - 2 * margin, pieH);
+  var splitX = 135; doc.line(splitX, y, splitX, y + pieH);
+
+  doc.setFont("helvetica", "bold"); doc.setFontSize(8.5); doc.text("CONDICIONES", margin + 3, y + 5);
+  doc.setFont("helvetica", "normal");
+  doc.text("Vigencia hasta: " + fechaVig, margin + 3, y + 11);
+  doc.text("Condiciones de venta: " + $("c_pago").value, margin + 3, y + 17);
+
+  var rx = W - margin - 3; var ty = y + 5.5; doc.setFontSize(8.5);
+  var printTotRow = function(lbl, val, isBold) {
+    doc.setFont("helvetica", isBold ? "bold" : "normal");
+    doc.text(lbl, splitX + 3, ty); doc.text(Math.round(val).toLocaleString("es-CL"), rx, ty, { align: "right" });
+    ty += 5;
+  };
+
+  printTotRow("NETO", t.neto, false);
+  printTotRow("I.V.A (19%)", t.iva, false);
+  printTotRow("TOTAL", t.total, true);
+
+  y += pieH + 4;
+  doc.rect(margin, y, W - 2 * margin, 6);
+  doc.setFontSize(7.5); doc.setFont("helvetica", "normal");
+  doc.text("Reajustes:100% Alzas de Fábricas - Entregas sujetas a disponibilidad de Fábrica", W / 2, y + 4, { align: "center" });
+
+  y += 10;
+  var finH = 28; doc.rect(margin, y, W - 2 * margin, finH); doc.line(100, y, 100, y + finH);
+  doc.setFontSize(8.5); doc.setFont("helvetica", "bold"); doc.text("Notas:", margin + 3, y + 5);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(7.5);
+  var notaTxt = $("nota").value.trim();
+  if (notaTxt) doc.text(doc.splitTextToSize(notaTxt, 80), margin + 3, y + 10);
+
+  var ejecNombre = $("e_n").value.trim() || "Ejecutivo de Ventas EBEMA";
+  var ejecContacto = [$("e_t").value.trim(), $("e_m").value.trim()].filter(Boolean).join("   |   ");
+  doc.line(110, y + 12, 185, y + 12); doc.setFontSize(8); doc.setFont("helvetica", "normal");
+  doc.text("Cotización realizada por:", 147.5, y + 16, { align: "center" });
+  doc.setFont("helvetica", "bold"); doc.text(ejecNombre, 147.5, y + 20, { align: "center" });
+  if (ejecContacto) {
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7.5);
+    doc.text(ejecContacto, 147.5, y + 24.5, { align: "center" });
+  }
+
+  return doc;
+}
+
+function pdf(save) {
+  var doc = buildPdf();
+  if (save) { doc.save("Cotizacion_EBEMA_" + ($("e_folio").value || "1065321") + ".pdf"); return; }
+  return doc.output("bloburl");
+}
+
+function preview() {
+  var u = pdf(false);
+  $("fr").src = u;
+  $("ab").href = u;
+  $("pv").hidden = false;
+}
+
+// ABRIR PDF EN VENTANA EXTERNA (si el navegador o el visor la bloquea, descarga el PDF)
+function abrirPdfExterno(ev) {
+  if (ev && ev.preventDefault) ev.preventDefault();
+  var msg = $("ext_msg");
+  msg.hidden = true;
+  var doc = buildPdf();
+  var url = doc.output("bloburl");
+  var w = null;
+  try { w = window.open(url, "_blank"); } catch (e) { w = null; }
+  if (!w) {
+    doc.save("Cotizacion_EBEMA_" + ($("e_folio").value || "1065321") + ".pdf");
+    msg.textContent = "El navegador bloqueó la ventana externa, por eso se descargó el PDF. Permita ventanas emergentes para este sitio para verlo en una pestaña nueva.";
+    msg.hidden = false;
+  }
+}
+</script>
+</body>
+</html>
